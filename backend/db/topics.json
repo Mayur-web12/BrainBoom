@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Math",
+    "emoji": "📐",
+    "color": "#4F8CFF"
+  },
+  {
+    "name": "Science",
+    "emoji": "🔬",
+    "color": "#7B61FF"
+  },
+  {
+    "name": "History",
+    "emoji": "🏛️",
+    "color": "#FF8C42"
+  },
+  {
+    "name": "Geography",
+    "emoji": "🌍",
+    "color": "#00D4AA"
+  },
+  {
+    "name": "Computer",
+    "emoji": "💻",
+    "color": "#FFD93D"
+  },
+  {
+    "name": "English",
+    "emoji": "📖",
+    "color": "#FF6B9D"
+  },
+  {
+    "name": "General",
+    "emoji": "🌟",
+    "color": "#FF5252"
+  },
+  {
+    "name": "Sabha",
+    "emoji": "🙏",
+    "color": "#F59E0B"
+  },
+  {
+    "name": "abc",
+    "emoji": "🛡",
+    "color": "#3fe71d"
+  }
+]

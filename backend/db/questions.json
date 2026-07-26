@@ -1,0 +1,739 @@
+[
+  {
+    "id": "m1",
+    "topic": "Math",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What is 7 × 8?",
+    "opts": [
+      "54",
+      "56",
+      "48",
+      "64"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "7 × 8 = 56. Quick trick: 7 × 4 = 28, then × 2 = 56."
+  },
+  {
+    "id": "m2",
+    "topic": "Math",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What is √144?",
+    "opts": [
+      "10",
+      "11",
+      "12",
+      "13"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "12 × 12 = 144, so √144 = 12."
+  },
+  {
+    "id": "m4",
+    "topic": "Math",
+    "diff": "medium",
+    "pts": 150,
+    "q": "A triangle has angles 60° and 70°. What is the third angle?",
+    "opts": [
+      "40°",
+      "50°",
+      "60°",
+      "70°"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Angles in a triangle sum to 180°. So 180 − 60 − 70 = 50°."
+  },
+  {
+    "id": "m5",
+    "topic": "Math",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What is 15% of 200?",
+    "opts": [
+      "25",
+      "30",
+      "35",
+      "40"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "15% of 200 = 0.15 × 200 = 30."
+  },
+  {
+    "id": "m8",
+    "topic": "Math",
+    "diff": "hard",
+    "pts": 200,
+    "q": "Solve for x:  2x + 10 = 30",
+    "opts": [
+      "8",
+      "10",
+      "12",
+      "15"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Subtract 10: 2x = 20. Divide by 2: x = 10."
+  },
+  {
+    "id": "s1",
+    "topic": "Science",
+    "diff": "easy",
+    "pts": 100,
+    "q": "Which planet is closest to the Sun?",
+    "opts": [
+      "Venus",
+      "Mars",
+      "Mercury",
+      "Earth"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Mercury is closest to the Sun, orbiting it every 88 days!"
+  },
+  {
+    "id": "s2",
+    "topic": "Science",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What gas do plants absorb during photosynthesis?",
+    "opts": [
+      "Oxygen",
+      "Carbon Dioxide",
+      "Nitrogen",
+      "Hydrogen"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Plants absorb CO₂ and release Oxygen during photosynthesis."
+  },
+  {
+    "id": "s4",
+    "topic": "Science",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What is the chemical symbol for Gold?",
+    "opts": [
+      "Go",
+      "Gd",
+      "Au",
+      "Ag"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Au comes from \"Aurum\" — Latin for gold."
+  },
+  {
+    "id": "s5",
+    "topic": "Science",
+    "diff": "medium",
+    "pts": 150,
+    "q": "How many bones are in the adult human body?",
+    "opts": [
+      "196",
+      "206",
+      "216",
+      "226"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Adults have 206 bones. Babies start with ~270 that fuse over time!"
+  },
+  {
+    "id": "s8",
+    "topic": "Science",
+    "diff": "hard",
+    "pts": 200,
+    "q": "What is the powerhouse of the cell?",
+    "opts": [
+      "Nucleus",
+      "Ribosome",
+      "Mitochondria",
+      "Golgi Apparatus"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "The mitochondria produces ATP energy via cellular respiration."
+  },
+  {
+    "id": "h1",
+    "topic": "History",
+    "diff": "easy",
+    "pts": 100,
+    "q": "Who was the first President of the United States?",
+    "opts": [
+      "Abraham Lincoln",
+      "George Washington",
+      "Thomas Jefferson",
+      "John Adams"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "George Washington became the 1st US President in 1789."
+  },
+  {
+    "id": "h4",
+    "topic": "History",
+    "diff": "medium",
+    "pts": 150,
+    "q": "Which empire built the Roman Colosseum?",
+    "opts": [
+      "Greek Empire",
+      "Ottoman Empire",
+      "Roman Empire",
+      "Byzantine Empire"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "The Roman Colosseum was built 70–80 AD under Emperor Vespasian."
+  },
+  {
+    "id": "h7",
+    "topic": "History",
+    "diff": "medium",
+    "pts": 150,
+    "q": "Which country was first to give women the right to vote?",
+    "opts": [
+      "USA",
+      "UK",
+      "Australia",
+      "New Zealand"
+    ],
+    "ans": [
+      3
+    ],
+    "exp": "New Zealand was first, granting women the vote in 1893."
+  },
+  {
+    "id": "h8",
+    "topic": "History",
+    "diff": "hard",
+    "pts": 200,
+    "q": "In which year did the French Revolution begin?",
+    "opts": [
+      "1776",
+      "1789",
+      "1799",
+      "1815"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "The French Revolution began in 1789 with the storming of the Bastille."
+  },
+  {
+    "id": "g1",
+    "topic": "Geography",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What is the capital city of France?",
+    "opts": [
+      "London",
+      "Berlin",
+      "Rome",
+      "Paris"
+    ],
+    "ans": [
+      3
+    ],
+    "exp": "Paris has been the capital of France since 987 AD!"
+  },
+  {
+    "id": "g3",
+    "topic": "Geography",
+    "diff": "easy",
+    "pts": 100,
+    "q": "Which is the longest river in the world?",
+    "opts": [
+      "Amazon",
+      "Nile",
+      "Yangtze",
+      "Mississippi"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "The Nile River in Africa is approximately 6,650 km long."
+  },
+  {
+    "id": "g4",
+    "topic": "Geography",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What is the capital of Australia?",
+    "opts": [
+      "Sydney",
+      "Melbourne",
+      "Canberra",
+      "Brisbane"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Canberra (not Sydney!) is Australia capital, built in 1913."
+  },
+  {
+    "id": "g8",
+    "topic": "Geography",
+    "diff": "hard",
+    "pts": 200,
+    "q": "What is the smallest country in the world by area?",
+    "opts": [
+      "Monaco",
+      "Maldives",
+      "Vatican City",
+      "San Marino"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Vatican City is just 0.44 km², located inside Rome, Italy."
+  },
+  {
+    "id": "c1",
+    "topic": "Computer",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What does CPU stand for?",
+    "opts": [
+      "Central Process Unit",
+      "Central Processing Unit",
+      "Computer Processing Unit",
+      "Core Processing Unit"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "CPU = Central Processing Unit — the \"brain\" of a computer."
+  },
+  {
+    "id": "c2",
+    "topic": "Computer",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What does HTML stand for?",
+    "opts": [
+      "Hyper Text Markup Language",
+      "High Tech Modern Language",
+      "Home Tool Markup Language",
+      "Hyper Transfer Markup Language"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "HTML = HyperText Markup Language — the language for web pages."
+  },
+  {
+    "id": "c4",
+    "topic": "Computer",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What does RAM stand for?",
+    "opts": [
+      "Random Access Memory",
+      "Read Access Memory",
+      "Random App Memory",
+      "Rapid Access Mode"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "RAM = Random Access Memory — fast, temporary storage for running programs."
+  },
+  {
+    "id": "c6",
+    "topic": "Computer",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What does \"URL\" stand for?",
+    "opts": [
+      "Uniform Resource Locator",
+      "Universal Resource Link",
+      "Unique Reference Locator",
+      "Uniform Routing Language"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "URL = Uniform Resource Locator — the web address for a resource online."
+  },
+  {
+    "id": "c8",
+    "topic": "Computer",
+    "diff": "hard",
+    "pts": 200,
+    "q": "What is the binary representation of decimal 10?",
+    "opts": [
+      "1010",
+      "1100",
+      "1001",
+      "1110"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "10 in binary = 1010. Because 8+2=10: positions 8(1)+4(0)+2(1)+1(0)."
+  },
+  {
+    "id": "e1",
+    "topic": "English",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What is a synonym for the word \"Happy\"?",
+    "opts": [
+      "Sad",
+      "Joyful",
+      "Angry",
+      "Tired"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "\"Joyful\" means full of happiness — a perfect synonym for happy!"
+  },
+  {
+    "id": "e4",
+    "topic": "English",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What is the plural of the word \"Ox\"?",
+    "opts": [
+      "Oxes",
+      "Oxen",
+      "Ox",
+      "Oxies"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "\"Oxen\" is the irregular plural of \"ox\"."
+  },
+  {
+    "id": "e7",
+    "topic": "English",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What does the prefix \"un-\" mean in the word \"unhappy\"?",
+    "opts": [
+      "More",
+      "Very",
+      "Not",
+      "Before"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "The prefix \"un-\" means \"not\". So unhappy = not happy."
+  },
+  {
+    "id": "e8",
+    "topic": "English",
+    "diff": "hard",
+    "pts": 200,
+    "q": "What literary device is used in \"The stars danced in the sky\"?",
+    "opts": [
+      "Simile",
+      "Metaphor",
+      "Personification",
+      "Alliteration"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Personification gives human traits (dancing) to non-human things (stars)."
+  },
+  {
+    "id": "gen1",
+    "topic": "General",
+    "diff": "easy",
+    "pts": 100,
+    "q": "How many colors are in a rainbow?",
+    "opts": [
+      "5",
+      "6",
+      "7",
+      "8"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "ROY G BIV — Red, Orange, Yellow, Green, Blue, Indigo, Violet = 7 colors!"
+  },
+  {
+    "id": "gen5",
+    "topic": "General",
+    "diff": "medium",
+    "pts": 150,
+    "q": "How many planets are in our solar system?",
+    "opts": [
+      "7",
+      "8",
+      "9",
+      "10"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "8 planets — Pluto was reclassified as a dwarf planet in 2006!"
+  },
+  {
+    "id": "gen10",
+    "topic": "General",
+    "diff": "hard",
+    "pts": 200,
+    "q": "What is the process by which caterpillars transform into butterflies?",
+    "opts": [
+      "Mitosis",
+      "Hibernation",
+      "Metamorphosis",
+      "Germination"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "Metamorphosis is the biological transformation from larva to adult butterfly."
+  },
+  {
+    "id": "sab1",
+    "topic": "Sabha",
+    "diff": "easy",
+    "pts": 100,
+    "q": "What do we usually do together at the start of a sabha?",
+    "opts": [
+      "Pray",
+      "Fight",
+      "Sleep",
+      "Run"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "A sabha usually begins with a prayer together, to calm the mind and begin with gratitude."
+  },
+  {
+    "id": "sab2",
+    "topic": "Sabha",
+    "diff": "easy",
+    "pts": 100,
+    "q": "How should we speak when someone else is talking in sabha?",
+    "opts": [
+      "Shout over them",
+      "Listen quietly",
+      "Laugh loudly",
+      "Leave the room"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Listening quietly is a sign of respect and helps everyone learn."
+  },
+  {
+    "id": "sab3",
+    "topic": "Sabha",
+    "diff": "easy",
+    "pts": 100,
+    "q": "Which of these is a good habit to practise every day?",
+    "opts": [
+      "Telling lies",
+      "Being kind",
+      "Being greedy",
+      "Being lazy"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Kindness is one of the most important values we learn and practise."
+  },
+  {
+    "id": "sab4",
+    "topic": "Sabha",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What is the word for saying \"thank you\" to God for what we have?",
+    "opts": [
+      "Gratitude",
+      "Anger",
+      "Boredom",
+      "Jealousy"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "Gratitude means being thankful. Being grateful makes us happier and humbler."
+  },
+  {
+    "id": "sab5",
+    "topic": "Sabha",
+    "diff": "medium",
+    "pts": 150,
+    "q": "If your friend makes a mistake and says sorry, what should you do?",
+    "opts": [
+      "Stay angry forever",
+      "Forgive them",
+      "Tell everyone",
+      "Ignore them"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "Forgiveness helps friendships grow and keeps our own hearts light."
+  },
+  {
+    "id": "sab6",
+    "topic": "Sabha",
+    "diff": "medium",
+    "pts": 150,
+    "q": "What do we call helping others without expecting anything back?",
+    "opts": [
+      "Selfless service (seva)",
+      "A trade",
+      "A loan",
+      "A game"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "Seva means selfless service — helping others simply because it is the right thing to do."
+  },
+  {
+    "id": "sab7",
+    "topic": "Sabha",
+    "diff": "medium",
+    "pts": 150,
+    "q": "Before eating, many families take a moment to do what?",
+    "opts": [
+      "Complain",
+      "Say a short prayer of thanks",
+      "Watch TV",
+      "Argue"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "A short prayer of thanks before eating reminds us to be grateful for our food."
+  },
+  {
+    "id": "sab8",
+    "topic": "Sabha",
+    "diff": "hard",
+    "pts": 200,
+    "q": "Which of these best describes \"honesty\"?",
+    "opts": [
+      "Always telling the truth",
+      "Keeping secrets to trick people",
+      "Copying answers",
+      "Breaking promises"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "Honesty means always telling the truth, even when it is difficult."
+  },
+  {
+    "id": "sab9",
+    "topic": "Sabha",
+    "diff": "hard",
+    "pts": 200,
+    "q": "Why do we sit calmly and focus during prayer or meditation?",
+    "opts": [
+      "To feel peaceful and focused",
+      "To feel sleepy",
+      "To waste time",
+      "To show off"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "Sitting calmly helps our mind become peaceful, focused, and ready to learn good things."
+  },
+  {
+    "id": "sab10",
+    "topic": "Sabha",
+    "diff": "hard",
+    "pts": 200,
+    "q": "A festival is a special day when a community comes together to do what?",
+    "opts": [
+      "Celebrate and remember good values",
+      "Feel sad",
+      "Stay alone",
+      "Do nothing"
+    ],
+    "ans": [
+      0
+    ],
+    "exp": "Festivals bring a community together to celebrate and remember important values and stories."
+  },
+  {
+    "id": "custom-1783250059384",
+    "topic": "abc",
+    "diff": "medium",
+    "q": "gujju bhai na character role name su che?",
+    "opts": [
+      "masi",
+      "masi ba",
+      "babita",
+      "daya"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "avu na hoy bathu bara bar che",
+    "pts": 150,
+    "mediaUrl": "https://youtu.be/RYxM0I9N3Z8?si=mC0fKj7S2ilfYULb",
+    "mediaType": "youtube"
+  },
+  {
+    "id": "custom-1783250194041",
+    "topic": "abc",
+    "diff": "easy",
+    "q": "gussing movie name",
+    "opts": [
+      "gujju",
+      "gujju bhai",
+      "gujju bhai great",
+      "gujju the great bhai"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "funny story line",
+    "pts": 100,
+    "mediaUrl": "https://youtu.be/yMqnmPbWi1s?si=UnGWGv9wKrylvQQl",
+    "mediaType": "youtube"
+  },
+  {
+    "id": "custom-1783250767630",
+    "topic": "abc",
+    "diff": "hard",
+    "q": "sfsfs asasdasd",
+    "opts": [
+      "sfsdf",
+      "sdfsdf",
+      "sdfsdf",
+      "sdfsf"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "serewfw safserwerwe",
+    "pts": 200,
+    "mediaUrl": null,
+    "mediaType": null
+  }
+]
