@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: quizquest-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: MENTOR_EMAIL
+        sync: false
+      - key: MENTOR_PASSWORD
+        sync: false
+      - key: MENTOR_NAME
+        value: Ms. Sharma
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: quizquest-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_URL
+        sync: false
+      - key: REACT_APP_MENTOR_PATH
+        value: /mentor-secret-path
