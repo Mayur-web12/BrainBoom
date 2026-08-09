@@ -167,7 +167,7 @@ module.exports = function initSocket(io) {
           const indPlayers = s.individualPlayers || [];
           return {
             ...s,
-            individualPlayers: [...indPlayers, { socketId: socket.id, name: player.name, avatar: player.avatar, score: 0 }],
+            individualPlayers: [...indPlayers, { socketId: socket.id, name: player.name, avatar: player.avatar, score: 0, fiftyFiftyUses: 0 }],
             // Also add to first team for lobby display
             teams: s.teams.map((t, i) => i === 0
               ? { ...t, players: [...t.players, { socketId: socket.id, name: player.name, avatar: player.avatar }] }
@@ -233,6 +233,41 @@ module.exports = function initSocket(io) {
         startTimer(io, upperCode);
       }
       cb({ ok: true });
+    });
+
+    // ── 50/50 LIFELINE — team removes two wrong options (up to FIFTY_FIFTY_MAX_USES/game) ──
+    socket.on('use-lifeline', ({ code, teamId, type } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      const upperCode = code?.toUpperCase();
+      const session   = store.getSession(upperCode);
+      if (!session) return cb({ ok: false, error: 'Session not found' });
+      if (type !== 'fiftyFifty') return cb({ ok: false, error: 'Unknown lifeline' });
+
+      const isIndividual = session.mode === 'individual';
+      const { session: updated, removedIndices, usesLeft, error } = isIndividual
+        ? engine.useFiftyFiftyIndividual(session, socket.id)
+        : engine.useFiftyFifty(session, teamId);
+      if (error) return cb({ ok: false, error });
+
+      store.updateSession(upperCode, () => updated);
+      cb({ ok: true, removedIndices, usesLeft });
+      io.to(upperCode).emit('lifeline-used', {
+        teamId: isIndividual ? socket.id : teamId, type, removedIndices, usesLeft,
+        state: engine.publicView(updated, false),
+      });
+    });
+
+    // ── MENTOR ARMS/DISARMS DOUBLE POINTS FOR THE NEXT QUESTION ──────────
+    socket.on('toggle-double-points', ({ code, on } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      if (!isMentorSocket(socket)) return cb({ ok: false, error: 'Unauthorized' });
+      const upperCode = code?.toUpperCase();
+      const session   = store.getSession(upperCode);
+      if (!session) return cb({ ok: false, error: 'Session not found' });
+
+      const updated = store.updateSession(upperCode, s => engine.toggleDoublePoints(s, on));
+      cb({ ok: true });
+      io.to(upperCode).emit('double-points-toggled', { on: !!on, state: engine.publicView(updated) });
     });
 
     // ── STUDENT SUBMITS ANSWER (TEAM MODE) ───────────────────────────────
@@ -305,8 +340,11 @@ module.exports = function initSocket(io) {
         ),
       }));
 
-      // Send personal result back to this player
-      cb({ ok: true, result: { correct, totalChange, newScore, correctAnswer: q.opts[q.ans[0]], explanation: q.exp } });
+      // Send only a receipt back — NOT the result. Revealing correct/wrong/points
+      // here would leak the answer before everyone has answered or time is up.
+      // The actual reveal happens via the 'individual-round-result' broadcast below
+      // (either when the last player answers, or when the timer expires).
+      cb({ ok: true, received: true });
 
       // Emit answer update to mentor so they see live who answered
       const answers = updatedSession.currentRoundAnswers || {};

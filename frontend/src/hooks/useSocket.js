@@ -42,18 +42,15 @@ export function useSocketSetup() {
       go('game');
     });
 
-    // TEAM MODE round result — one toast for the key outcome
+    // TEAM MODE round result — navigate to the result screen, which handles its
+    // own suspense delay + reveal + sound. No toast here: a toast fired the
+    // instant this event arrives would leak the correct/wrong outcome before
+    // the screen's own "Calculating result…" delay finishes, which is exactly
+    // the contradiction we don't want.
     s.on('round-result', ({ state, summary, result, timedOut }) => {
       dispatch({ type:'SET_GAME', gameState: state });
       if (state.individualPlayers) dispatch({ type:'SET_INDIVIDUAL_PLAYERS', players: state.individualPlayers });
       dispatch({ type:'SET_ROUND', roundResult: { state, summary, result, timedOut, mode:'team' } });
-      if (timedOut) {
-        toast(`⏰ Time's Up! ${summary?.teamName} missed the question.`, 'error');
-      } else if (result?.correct) {
-        toast(`✅ Correct! +${result.totalChange} pts`, 'success');
-      } else {
-        toast(`❌ Wrong answer! ${result?.totalChange} pts`, 'error');
-      }
       go('round-result');
     });
 

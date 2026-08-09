@@ -368,8 +368,11 @@ export function GameScreen() {
   const [busy,      setBusy]      = useState(false);
   const [optStates, setOptStates] = useState({});
   const [answered,  setAnswered]  = useState(false);
+  const [removedOpts, setRemovedOpts] = useState([]); // 50/50 lifeline
+  const [lifelineBusy, setLifelineBusy] = useState(false);
+  const [lockedIn,  setLockedIn]  = useState(false);
 
-  useEffect(()=>{ setOptStates({}); setAnswered(false); setBusy(false); },[gs?.currentQuestion?.id]);
+  useEffect(()=>{ setOptStates({}); setAnswered(false); setBusy(false); setRemovedOpts([]); setLockedIn(false); },[gs?.currentQuestion?.id]);
 
   if (!gs||!gs.question) return (
     <div className="screen" style={{alignItems:'center',justifyContent:'center'}}>
@@ -396,7 +399,7 @@ export function GameScreen() {
 
   const submit = async (idx) => {
     if (!canAnswer) return;
-    setBusy(true); setAnswered(true);
+    setBusy(true); setAnswered(true); setLockedIn(true);
     const ns={}; q.opts.forEach((_,i)=>{if(i!==idx)ns[i]='hidden';}); setOptStates(ns);
     try {
       const event = isIndividual ? 'submit-individual-answer' : 'submit-answer';
@@ -404,9 +407,43 @@ export function GameScreen() {
         ? { code:gs.code, answerIdx:idx }
         : { code:gs.code, teamId:myTeamId, answerIdx:idx };
       const res = await emit(event, payload);
-      setOptStates({[idx]:res.result.correct?'correct':'wrong'});
-    } catch(err){ toast(err.message,'error'); setAnswered(false); setOptStates({}); }
+      setLockedIn(false);
+      if (isIndividual) {
+        // Individual/solo mode: do NOT reveal correct/wrong yet — the backend no
+        // longer sends it here on purpose. Just show the pick as "selected" and
+        // wait for the 'individual-round-result' broadcast (fires once everyone
+        // has answered, or when the timer expires) to actually reveal + play sound.
+        setOptStates({[idx]:'selected'});
+      } else {
+        // Team mode: this IS the final result for the turn (one team answers per
+        // round), so immediate reveal is correct here — no one else is still
+        // "in progress" on this question.
+        setOptStates({[idx]:res.result.correct?'correct':'wrong'});
+      }
+    } catch(err){ toast(err.message,'error'); setAnswered(false); setLockedIn(false); setOptStates({}); }
     setBusy(false);
+  };
+
+  const myTeamFiftyLeft = myTeam?.lifelines?.fiftyFiftyLeft ?? 3;
+  const myIndPlayer     = gs.individualPlayers?.find(p => p.socketId === state.player?.socketId);
+  const myIndFiftyLeft  = myIndPlayer?.fiftyFiftyLeft ?? 3;
+  const fiftyFiftyLeft  = isIndividual ? myIndFiftyLeft : myTeamFiftyLeft;
+
+  const useFiftyFifty = async () => {
+    if (answered || lifelineBusy || fiftyFiftyLeft <= 0) return;
+    if (!isIndividual && !isMyTurn) return;
+    // Final-use warning — only when this would be their LAST available use.
+    if (fiftyFiftyLeft === 1) {
+      const ok = window.confirm('You have 1 use of 50/50 remaining. Use it now? This is your final use for this game.');
+      if (!ok) return;
+    }
+    setLifelineBusy(true);
+    try {
+      const res = await emit('use-lifeline', { code: gs.code, teamId: myTeamId, type: 'fiftyFifty' });
+      setRemovedOpts(res.removedIndices || []);
+      toast(res.usesLeft > 0 ? `🎯 50/50 used — ${res.usesLeft} left!` : '🎯 50/50 used — that was your last one!', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    setLifelineBusy(false);
   };
 
   return (
@@ -424,6 +461,11 @@ export function GameScreen() {
       <div style={{padding:'0 18px'}}><div className="progress-bar" style={{marginTop:6}}>
         <div className="progress-fill" style={{width:`${Math.round(((gs.roundNumber||0)/Math.max(1,totalRnds))*100)}%`,background:`linear-gradient(90deg,${meta.color},var(--blue2))`}}/>
       </div></div>
+      {gs.doublePointsActive && (
+        <div style={{margin:'10px 18px 0',padding:'8px 14px',borderRadius:12,background:'linear-gradient(135deg,rgba(255,217,61,.22),rgba(255,140,66,.22))',border:'2px solid rgba(255,217,61,.5)',textAlign:'center',fontWeight:900,color:'var(--yellow)',animation:'pulse 1.2s infinite'}}>
+          ⚡ DOUBLE POINTS — this question is worth 2x! ⚡
+        </div>
+      )}
       <div style={{flex:1,padding:'14px 18px',maxWidth:720,margin:'0 auto',width:'100%'}}>
         {isIndividual ? (
           <div style={{padding:'10px 14px',borderRadius:14,marginBottom:12,display:'flex',alignItems:'center',gap:10,background:'rgba(76,175,80,.15)',border:'2px solid rgba(76,175,80,.5)',animation:!answered?'glow 2s infinite':''}}>
@@ -441,6 +483,9 @@ export function GameScreen() {
               <div className="fw8 fs-sm" style={{color:isMyTurn?myTeam?.color:curTeam?.color}}>{isMyTurn?'🎯 Your turn! Select your answer.':`Watching ${curTeam?.name} answer…`}</div>
               <div className="mut fs-xs mt1" style={{marginTop:3}}>{curTeam?.name} has answered {teamProgress(gs,gs.currentTeamId).played}/{teamProgress(gs,gs.currentTeamId).total} questions</div>
             </div>
+            {curTeam?.streak >= 2 && (
+              <span className="badge b-yellow" style={{fontSize:'0.8rem',animation:'pulse 1.2s infinite'}}>🔥 {curTeam.streak} streak</span>
+            )}
             {!isMyTurn&&<span className="badge b-orange">👀 Watching</span>}
           </div>
         )}
@@ -456,11 +501,36 @@ export function GameScreen() {
           <p style={{fontSize:'1.18rem',fontWeight:800,lineHeight:1.55}}>{q.q || q.text}</p>
           {q.mediaUrl && <QuestionMedia url={q.mediaUrl} type={q.mediaType} />}
         </div>
-        <div className="opts-grid" style={{marginBottom:14}}>
+        {!answered && (isIndividual || isMyTurn) && (
+          <div className="fl fla flb mb2" style={{marginBottom:8,flexWrap:'wrap',gap:8}}>
+            <button
+              className="btn btn-sm"
+              disabled={fiftyFiftyLeft<=0 || lifelineBusy || removedOpts.length>0}
+              onClick={useFiftyFifty}
+              style={{
+                background: fiftyFiftyLeft<=0 ? 'rgba(255,255,255,.06)' : 'linear-gradient(135deg,var(--blue2),var(--blue))',
+                opacity: fiftyFiftyLeft<=0 ? 0.5 : 1,
+                cursor: fiftyFiftyLeft<=0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              🎯 50/50 {fiftyFiftyLeft<=0 ? '— used up' : `(${fiftyFiftyLeft} left)`}
+            </button>
+          </div>
+        )}
+        <div className="opts-grid" style={{marginBottom:14,position:'relative'}}>
+          {lockedIn && (
+            <div style={{position:'absolute',inset:0,zIndex:5,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(8,6,22,.55)',borderRadius:16,animation:'fadeUp .2s ease'}}>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:'2.4rem',animation:'bounce .6s ease infinite'}}>🔒</div>
+                <div className="fw9" style={{color:'#fff',marginTop:4}}>Locked in!</div>
+              </div>
+            </div>
+          )}
           {q.opts.map((o,i)=>{
             const st=optStates[i];
-            return (<button key={i} className={['opt-btn',st==='correct'?'opt-correct':'',st==='wrong'?'opt-wrong':'',(!canAnswer||st==='hidden')?'opt-disabled':''].join(' ')}
-              style={{opacity:st==='hidden'?.22:1,pointerEvents:canAnswer&&st!=='hidden'?'auto':'none'}} onClick={()=>submit(i)}>
+            const isRemoved = removedOpts.includes(i);
+            return (<button key={i} className={['opt-btn',st==='correct'?'opt-correct':'',st==='wrong'?'opt-wrong':'',(!canAnswer||st==='hidden'||isRemoved)?'opt-disabled':''].join(' ')}
+              style={{opacity:(st==='hidden'||isRemoved)?.22:1,pointerEvents:(canAnswer&&st!=='hidden'&&!isRemoved)?'auto':'none'}} onClick={()=>submit(i)}>
               <div className="opt-letter">{LETTERS[i]}</div><span>{o}</span>
             </button>);
           })}
@@ -519,14 +589,21 @@ export function RoundResult() {
   const [conf,setConf] = useState(false);
   const [busy,setBusy] = useState(false);
   const [showHist,setShowHist] = useState(false);
+  const [revealed,setRevealed] = useState(false); // suspense delay before showing points/score
   const isMentor = !!state.mentor;
 
   const isIndividualMode = roundResult?.mode === 'individual' || state.player?.mode === 'individual';
 
   useEffect(()=>{
-    const correct = isIndividualMode ? individualAnswers?.[Object.keys(individualAnswers||{})[0]]?.correct : roundResult?.result?.correct;
-    if(correct){setConf(true);playCorrect();const t=setTimeout(()=>setConf(false),2500);return()=>clearTimeout(t);}
-    else{playWrong();}
+    const myAnswerForSound = individualAnswers?.[state.player?.socketId]
+      || Object.values(individualAnswers||{}).find(a=>a.playerName===state.player?.name);
+    const correct = isIndividualMode ? (myAnswerForSound?.correct || false) : roundResult?.result?.correct;
+    const revealTimer = setTimeout(() => {
+      setRevealed(true);
+      if(correct){setConf(true);playCorrect();const t=setTimeout(()=>setConf(false),2500);}
+      else{playWrong();}
+    }, 1500);
+    return () => clearTimeout(revealTimer);
   },[]);// eslint-disable-line
 
   if (!roundResult||!gs) return <div className="screen" style={{alignItems:'center',justifyContent:'center'}}><p className="mut fw8">Loading…</p></div>;
@@ -644,6 +721,12 @@ export function RoundResult() {
         <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.round(((gs.roundNumber||0)/Math.max(1,totalRnds))*100)}%`,background:'linear-gradient(90deg,var(--blue),var(--blue2))'}}/></div>
       </div>
       <div style={{maxWidth:680,margin:'0 auto',width:'100%'}}>
+        {!revealed ? (
+          <div className="card tc" style={{padding:'40px 20px',animation:'popIn .3s ease'}}>
+            <div style={{fontSize:'3rem',marginBottom:14,animation:'pulse 1s infinite'}}>🤔</div>
+            <div className="fw8" style={{fontSize:'1.1rem',color:'var(--t2)'}}>Calculating result…</div>
+          </div>
+        ) : (
         <div className="card tc mb3" style={{marginBottom:14,animation:'popIn .35s ease',padding:'22px 20px',borderColor:correct?'rgba(76,175,80,.4)':timedOut?'rgba(255,217,61,.3)':'rgba(255,82,82,.3)'}}>
           <div style={{fontSize:'3.5rem',marginBottom:10}}>{timedOut?'⏰':correct?'🎉':'😮'}</div>
           <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:`${teamColor}22`,border:`1.5px solid ${teamColor}55`,marginBottom:12}}>
@@ -653,6 +736,8 @@ export function RoundResult() {
           <div style={{fontSize:'2.2rem',fontWeight:900,marginBottom:12,color:totalChange>0?'var(--green)':totalChange<0?'var(--red)':'var(--t2)'}}>
             {totalChange>0?'+':''}{totalChange} pts
             {correct&&roundResult.result?.speedBonus>0&&<span className="badge b-yellow" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>⚡ +{roundResult.result.speedBonus}</span>}
+            {correct&&roundResult.result?.streakMultiplier>1&&<span className="badge b-yellow" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>🔥 x{roundResult.result.streakMultiplier} streak</span>}
+            {roundResult.result?.doublePoints&&<span className="badge b-purple" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>⚡ 2x double points</span>}
           </div>
           <div className="fl fla flc gap2 mb3" style={{justifyContent:'center',marginBottom:12}}>
             <span style={{padding:'4px 10px',borderRadius:20,background:`${meta.color}22`,border:`1.5px solid ${meta.color}44`,fontSize:'0.88rem',fontWeight:700,color:meta.color}}>{meta.emoji} {summary?.topic}</span>
@@ -670,8 +755,11 @@ export function RoundResult() {
             <span className="fw8 fs-sm" style={{color:correct?'var(--green)':'var(--red)'}}>{correct?`🏆 Your team scored! Total: ${summary?.totalScore} pts`:timedOut?`⏰ Timed out — ${totalChange} pts. Total: ${summary?.totalScore}`:`❌ Wrong — ${totalChange} pts. Total: ${summary?.totalScore}`}</span>
           </div>}
         </div>
-        {/* Standings card — mentor always sees all; students see only their team mid-game */}
-        {isMentor ? (
+        )}
+        {/* Standings card — mentor always sees all; students see only their team mid-game.
+            Hidden until `revealed` so the freeze/suspense delay above isn't undermined by
+            an already-visible updated score. */}
+        {!revealed ? null : isMentor ? (
           <div className="card mb3" style={{marginBottom:14}}>
             <div className="sec-title">🏆 All Team Scores</div>
             {(summary?.teams||gs.teams)?[...(summary?.teams||gs.teams)].sort((a,b)=>b.score-a.score).map((t,i)=><TeamScoreRow key={t.id} team={t} rank={i+1} animate/>):null}
@@ -782,6 +870,32 @@ export function SharedGameScreen() {
   const [usedIds,      setUsedIds]      = useState([]);
   const [dbQ,          setDbQ]          = useState([]);
   const [loadingQ,     setLoadingQ]     = useState(true);
+  const [fiftyFiftyUsed, setFiftyFiftyUsed] = useState({}); // { teamId: count } — 50/50 lifeline, resets per game
+  const [removedOpts,    setRemovedOpts]   = useState([]);  // indices hidden by 50/50 on the CURRENT question
+
+  // Full reset for "Play Again" — the component stays mounted between games
+  // (we just flip `phase` back to 'setup'), so anything left in state here
+  // would otherwise leak into the next game: previous scores, used questions,
+  // round history, and 50/50 lifeline usage all need to go back to zero.
+  // This was the root cause of "category still shows all used in a new game"
+  // for Shared Screen mode specifically.
+  const resetSharedGame = () => {
+    setTeams(t => t.map(x => ({ ...x, score: 0 })));
+    setCurTeamIdx(0);
+    setQuestion(null);
+    setChosenTopic(null);
+    setChosenDiff(null);
+    setTimer(timerSecs);
+    setTimerActive(false);
+    setRounds([]);
+    setTeamRounds({});
+    setFeedback(null);
+    setAnsweredIdx(null);
+    setUsedIds([]);
+    setFiftyFiftyUsed({});
+    setRemovedOpts([]);
+    setPhase('setup');
+  };
 
   // Load questions
   useEffect(() => {
@@ -906,7 +1020,7 @@ export function SharedGameScreen() {
     setQuestion(q);
     setChosenDiff(q.diff);
     setUsedIds(p => [...p, q.id]);
-    setAnsweredIdx(null); setFeedback(null);
+    setAnsweredIdx(null); setFeedback(null); setRemovedOpts([]);
     setTimer(timerSecs); setTimerActive(true);
     setPhase('question');
     // Check if topic is fully exhausted
@@ -914,6 +1028,26 @@ export function SharedGameScreen() {
     if (remaining.length === 0) {
       setAvailable(p => { const n={...p}; delete n[chosenTopic]; return n; });
     }
+  };
+
+  const SHARED_FIFTY_FIFTY_MAX = 3;
+  const useFiftyFiftyShared = () => {
+    if (answeredIdx !== null || phase !== 'question' || timer <= 0) return;
+    const ct = teams[curTeamIdx];
+    const usesSoFar = fiftyFiftyUsed[ct.id] || 0;
+    if (usesSoFar >= SHARED_FIFTY_FIFTY_MAX) return;
+    if (usesSoFar === SHARED_FIFTY_FIFTY_MAX - 1) {
+      const ok = window.confirm(`${ct.name} has 1 use of 50/50 remaining. Use it now? This is the final use for this game.`);
+      if (!ok) return;
+    }
+    const wrongIndices = question.opts.map((_,i)=>i).filter(i => !question.ans.includes(i));
+    if (wrongIndices.length < 2) return;
+    const shuffled = [...wrongIndices].sort(() => Math.random() - 0.5);
+    const removed = shuffled.slice(0, shuffled.length - 1);
+    setRemovedOpts(removed);
+    setFiftyFiftyUsed(p => ({ ...p, [ct.id]: usesSoFar + 1 }));
+    const left = SHARED_FIFTY_FIFTY_MAX - (usesSoFar + 1);
+    sharedToast(left > 0 ? `🎯 50/50 used — ${left} left for ${ct.name}!` : `🎯 50/50 used — that was ${ct.name}'s last one!`, 'success');
   };
 
   const submitAnswer = idx => {
@@ -1193,19 +1327,39 @@ export function SharedGameScreen() {
               </div>
             </div>
           )}
+          {/* 50/50 LIFELINE — shared across the answering team, 3 uses per game */}
+          {answeredIdx===null && timer>0 && (
+            <div className="fl fla flb mb2" style={{marginBottom:8,flexWrap:'wrap',gap:8}}>
+              <button
+                className="btn btn-sm"
+                disabled={(fiftyFiftyUsed[ct.id]||0)>=SHARED_FIFTY_FIFTY_MAX || removedOpts.length>0}
+                onClick={useFiftyFiftyShared}
+                style={{
+                  background: (fiftyFiftyUsed[ct.id]||0)>=SHARED_FIFTY_FIFTY_MAX ? 'rgba(255,255,255,.06)' : 'linear-gradient(135deg,var(--blue2),var(--blue))',
+                  opacity: (fiftyFiftyUsed[ct.id]||0)>=SHARED_FIFTY_FIFTY_MAX ? 0.5 : 1,
+                  cursor: (fiftyFiftyUsed[ct.id]||0)>=SHARED_FIFTY_FIFTY_MAX ? 'not-allowed' : 'pointer',
+                }}
+              >
+                🎯 50/50 {(fiftyFiftyUsed[ct.id]||0)>=SHARED_FIFTY_FIFTY_MAX ? '— used up' : `(${SHARED_FIFTY_FIFTY_MAX-(fiftyFiftyUsed[ct.id]||0)} left)`}
+              </button>
+            </div>
+          )}
           {/* MCQ OPTIONS */}
           <div className="opts-grid" style={{marginBottom:16,gap:14}}>
             {q.opts.map((o,i)=>{
               let cls='opt-btn'; let sty={};
+              const isRemoved = removedOpts.includes(i);
               if (answeredIdx!==null) {
                 if (q.ans.includes(i)) cls+=' opt-correct';
                 else if (i===answeredIdx) cls+=' opt-wrong';
                 else sty.opacity=.3;
+              } else if (isRemoved) {
+                cls+=' opt-disabled'; sty.opacity=.25;
               }
               return(
                 <button key={i} className={cls}
-                  style={{...sty,fontSize:'1.05rem',padding:'18px 16px',minHeight:72,pointerEvents:answeredIdx===null&&timer>0?'auto':'none',opacity:timer===0&&answeredIdx===null?0.4:undefined}}
-                  onClick={()=>timer>0&&submitAnswer(i)}>
+                  style={{...sty,fontSize:'1.05rem',padding:'18px 16px',minHeight:72,pointerEvents:(answeredIdx===null&&timer>0&&!isRemoved)?'auto':'none',opacity:timer===0&&answeredIdx===null?0.4:sty.opacity}}
+                  onClick={()=>timer>0&&!isRemoved&&submitAnswer(i)}>
                   <div className="opt-letter" style={{width:40,height:40,fontSize:'0.95rem',fontWeight:900}}>{LETTERS[i]}</div>
                   <span style={{fontWeight:800}}>{o}</span>
                 </button>
@@ -1305,7 +1459,7 @@ export function SharedGameScreen() {
         <Confetti active/>
         <nav className="nav">
           <span className="logo">🏆 Final Results</span>
-          <button className="btn btn-ghost btn-sm" onClick={()=>setPhase('setup')}>🔄 Play Again</button>
+          <button className="btn btn-ghost btn-sm" onClick={resetSharedGame}>🔄 Play Again</button>
         </nav>
         <div style={{flex:1,maxWidth:640,margin:'0 auto',width:'100%',padding:'20px'}}>
           <div style={{textAlign:'center',marginBottom:24}}>
@@ -1358,7 +1512,7 @@ export function SharedGameScreen() {
           </div>}
           <div className="fl gap2">
             <button className="btn btn-ghost fl1" onClick={()=>{ window.history.pushState({},'','/'); window.location.reload(); }}>🏠 Home</button>
-            <button className="btn btn-primary fl1" onClick={()=>setPhase('setup')}>🔄 Play Again</button>
+            <button className="btn btn-primary fl1" onClick={resetSharedGame}>🔄 Play Again</button>
           </div>
         </div>
       </div>

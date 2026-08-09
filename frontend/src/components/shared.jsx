@@ -8,20 +8,20 @@ export function Nav({ onBack, backLabel = '← Back', title, right }) {
   const [muted, setMutedState] = useState(isMuted());
   const toggleMute = () => { const next = !muted; setMuted(next); setMutedState(next); };
   return (
-    <nav className="nav">
-      <div className="fl fla gap2">
-        {onBack && <button className="btn btn-ghost btn-sm" onClick={onBack}>{backLabel}</button>}
+    <nav className="nav nav-wrap">
+      <div className="fl fla gap2" style={{minWidth:0}}>
+        {onBack && <button className="btn btn-ghost btn-sm" onClick={onBack} style={{flexShrink:0}}>{backLabel}</button>}
         {title
-          ? <span style={{ fontWeight:800, fontSize:'1.05rem' }}>{title}</span>
+          ? <span className="nav-title" style={{ fontWeight:800, fontSize:'1.05rem' }}>{title}</span>
           : <span className="logo">BrainBoom</span>
         }
       </div>
-      <div className="fl fla gap2">
+      <div className="fl fla gap2" style={{flexWrap:'wrap',justifyContent:'flex-end'}}>
         {right}
         <button className="btn btn-ghost btn-sm" onClick={toggleMute} title={muted ? 'Unmute sound effects' : 'Mute sound effects'}>
           {muted ? '🔇' : '🔊'}
         </button>
-        <span className="fl fla gap1 fs-xs mut">
+        <span className="fl fla gap1 fs-xs mut nav-conn-status">
           <span className={`conn-dot ${state.connected ? 'conn-online' : 'conn-offline'}`} />
           {state.connected ? 'Live' : 'Offline'}
         </span>
@@ -176,7 +176,7 @@ export function TeamScoreRow({ team, rank, highlight, animate }) {
       <span style={{ fontSize:'1.5rem' }}>{team.emoji}</span>
       <div className="fl1">
         <div className="fw8">{team.name}</div>
-        <div className="fs-xs mut">{team.playerCount||0} players</div>
+        <div className="fs-xs mut">{team.playerCount||0} players{team.streak>=2 ? ' · ' : ''}{team.streak>=2 && <span style={{color:'var(--yellow)',fontWeight:800}}>🔥 {team.streak} streak</span>}</div>
       </div>
       <div className="tr">
         <div style={{ fontSize:'1.3rem', fontWeight:900, color:team.color }}>{team.score}</div>

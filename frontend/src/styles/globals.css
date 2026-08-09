@@ -122,7 +122,13 @@ textarea.inp { resize:vertical; }
 .diff-hard   { background:rgba(255,82,82,.15);  color:var(--red);    border:1.5px solid rgba(255,82,82,.3);  }
 
 /* ── NAV ────────────────────────────────────────────────────────────── */
-.nav { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:rgba(8,6,22,.9); backdrop-filter:blur(18px); border-bottom:1px solid rgba(123,97,255,.18); position:sticky; top:0; z-index:100; }
+.nav { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:rgba(8,6,22,.9); backdrop-filter:blur(18px); border-bottom:1px solid rgba(123,97,255,.18); position:sticky; top:0; z-index:100; gap:10px; }
+.nav-wrap { flex-wrap:wrap; row-gap:8px; }
+.nav-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46vw; }
+@media(max-width:480px) {
+  .nav-title { max-width:38vw; font-size:0.95rem !important; }
+  .nav-conn-status { display:none; } /* least-critical info — first to go when space is tight */
+}
 .logo { font-family:'Fredoka',cursive; font-size:1.65rem; background:linear-gradient(135deg,var(--blue),var(--blue2),var(--yellow)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:700; }
 
 /* ── BACKGROUND ORBS ─────────────────────────────────────────────────── */
@@ -227,6 +233,11 @@ tr:hover td { background:rgba(255,255,255,.025); }
 .opt-btn.opt-correct .opt-letter { background:var(--green); color:#fff; }
 .opt-btn.opt-wrong   { background:rgba(255,82,82,.12);  border-color:var(--red); }
 .opt-btn.opt-wrong .opt-letter   { background:var(--red); color:#fff; }
+/* Selected-but-not-yet-revealed — used in individual/solo mode while waiting for
+   everyone else to answer or the timer to expire. Neutral color on purpose:
+   must NOT hint correct/wrong before the real reveal. */
+.opt-btn.opt-selected { background:rgba(123,97,255,.14); border-color:var(--blue2); }
+.opt-btn.opt-selected .opt-letter { background:var(--blue2); color:#fff; }
 .opts-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media(max-width:500px) { .opts-grid { grid-template-columns:1fr; } }
 

@@ -534,6 +534,29 @@ function LiveControl({ emit, toast, topicMeta, onNavigate, onRefresh }) {
         <span className="mut fs-xs">· Round {gs.roundNumber||0} · {gs.usedCount||0}/{gs.totalQuestions} used</span>
         <span className="mut fs-xs">· {available.length} topics left</span>
       </div>
+      {!isIndividual && (
+        <div style={{
+          background: gs.doublePoints ? 'linear-gradient(135deg,rgba(255,217,61,.18),rgba(255,140,66,.18))' : 'var(--bg3)',
+          border: gs.doublePoints ? '1.5px solid rgba(255,217,61,.5)' : '1px solid rgba(255,255,255,.06)',
+          borderRadius:12, padding:'10px 16px', marginBottom:14, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap',
+        }}>
+          <span className="fw8 fs-sm">⚡ Double Points</span>
+          <span className="mut fs-xs">
+            {gs.doublePoints ? 'Armed — next question picked will be worth 2x' :
+             gs.doublePointsActive ? 'Active on the current question' :
+             'Off — arm it before a team picks their next topic'}
+          </span>
+          <button
+            className={`btn btn-sm ${gs.doublePoints ? '' : 'btn-ghost'}`}
+            style={gs.doublePoints ? {background:'linear-gradient(135deg,var(--yellow),var(--orange))',color:'#1a1a1a'} : {}}
+            disabled={busy || gs.status !== 'topic_pick'}
+            onClick={()=>act('toggle-double-points',{on:!gs.doublePoints})}
+            title={gs.status !== 'topic_pick' ? 'Only available while a team is picking a topic' : ''}
+          >
+            {gs.doublePoints ? '✅ Armed — tap to cancel' : '⚡ Arm for next question'}
+          </button>
+        </div>
+      )}
       <div className="grid2" style={{gap:14,marginBottom:14}}>
         <div className="card">
           {gs.mode === 'individual' ? (
@@ -1529,17 +1552,17 @@ function Results({ sessions, onDeleteSession, onRefresh }) {
           <div className="sec-title">🖥️ Shared Screen Games</div>
           {sharedResults.map((r, idx) => (
             <div key={idx} className="card mb3" style={{marginBottom:12}}>
-              <div className="fl fla flb mb2">
-                <div>
+              <div className="fl fla flb flw gap2 mb2">
+                <div style={{minWidth:0,flex:'1 1 200px'}}>
                   <div className="fw8 fs-lg">{r.title || `Shared Game #${idx+1}`}</div>
-                  <div className="fl fla gap2 mt1" style={{marginTop:5}}>
+                  <div className="fl fla gap2 flw mt1" style={{marginTop:5}}>
                     <span className="badge b-blue">🖥️ Shared Screen</span>
                     <span className="badge b-green">Finished</span>
                     <span className="badge b-purple">{r.rounds?.length || 0} rounds played</span>
                     <span className="mut fs-xs">{r.date ? new Date(r.date).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
-                <button className="btn btn-danger btn-sm" title="Delete this result"
+                <button className="btn btn-danger btn-sm" title="Delete this result" style={{flexShrink:0,whiteSpace:'nowrap'}}
                   onClick={()=>{ if(window.confirm('Delete this result?')){ const updated=sharedResults.filter((_,i)=>i!==idx); setSharedResults(updated); localStorage.setItem('quizquest_shared_results',JSON.stringify(updated)); } }}>
                   🗑️ Delete
                 </button>

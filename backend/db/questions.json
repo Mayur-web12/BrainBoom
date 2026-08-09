@@ -735,5 +735,63 @@
     "pts": 200,
     "mediaUrl": null,
     "mediaType": null
+  },
+  {
+    "id": "custom-1785780606718",
+    "topic": "satsang",
+    "diff": "easy",
+    "q": "asfaf",
+    "opts": [
+      "java",
+      "ajavscript",
+      "javascript",
+      "jaavscript"
+    ],
+    "ans": [
+      2
+    ],
+    "exp": "javascript",
+    "pts": 100,
+    "mediaUrl": "https://youtu.be/LeHdBkdolBg?si=2WgKoDVmybCUnhAt",
+    "mediaType": "youtube"
+  },
+  {
+    "id": "custom-1785780676482",
+    "topic": "satsang",
+    "diff": "medium",
+    "q": "dffdasf",
+    "opts": [
+      "zsda",
+      "asd",
+      "sfa",
+      "afa"
+    ],
+    "ans": [
+      1
+    ],
+    "exp": "sdfsdf sdfasfs",
+    "pts": 150,
+    "mediaUrl": null,
+    "mediaType": null
+  },
+  {
+    "id": "custom-1786250463418",
+    "topic": "satsang",
+    "diff": "hard",
+    "q": "asbkasdbfk sdhsjdf kshfa f",
+    "opts": [
+      "java",
+      "javascript",
+      "aajav",
+      "javaScript"
+    ],
+    "ans": [
+      1,
+      3
+    ],
+    "exp": "language popular",
+    "pts": 200,
+    "mediaUrl": "https://youtu.be/qXijlx9B9eE?si=ge9B29qs9Pm1Mohr",
+    "mediaType": "youtube"
   }
 ]

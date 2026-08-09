@@ -8,6 +8,7 @@ frontend/build/
 
 # Environment files — never commit real secrets
 .env
+.env.local
 frontend/.env
 backend/.env
 !.env.example
@@ -21,3 +22,6 @@ backend/db/
 *.log
 .DS_Store
 Thumbs.db
+
+.env.production
+build/

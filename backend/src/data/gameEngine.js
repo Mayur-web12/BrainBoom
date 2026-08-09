@@ -25,6 +25,9 @@ const POINTS = {
   hard:   { correct: 200, wrong: -100 },
 };
 
+// 50/50 lifeline — shared team/player budget PER GAME, resets on every new session.
+const FIFTY_FIFTY_MAX_USES = 3;
+
 // ─────────────────────────────────────────────────────────────────
 // createGameSession
 // ─────────────────────────────────────────────────────────────────
@@ -48,7 +51,7 @@ function createGameSession({ code, title, mentorId, teams, questions, timerSecon
     mentorId,
     mode: mode || 'team',
     status:          'lobby',   // lobby | topic_pick | playing | round_result | finished
-    teams:           teams.map(t => ({ ...t, score: 0, players: [], roundScores: [] })),
+    teams:           teams.map(t => ({ ...t, score: 0, players: [], roundScores: [], streak: 0, lifelines: { fiftyFiftyUses: 0 } })),
     questions,                  // full question array
     usedQuestionIds: [],        // ids already asked — never repeat
     byTopic,                    // { topicName: [questionIds] }
@@ -68,6 +71,10 @@ function createGameSession({ code, title, mentorId, teams, questions, timerSecon
     roundNumber:        0,
     startedAt:          null,
     finishedAt:         null,
+
+    // ── Quick-win features ──────────────────────────────────────────
+    doublePoints:        false, // mentor-armed — applies to the NEXT question picked
+    doublePointsActive:  false, // snapshot taken when a question is actually picked
   };
 }
 
@@ -114,6 +121,8 @@ function teamPicksTopic(session, teamId, topic) {
     timerRunning:   true,
     timerRemaining: session.timerSeconds,
     roundNumber:    session.roundNumber + 1,
+    doublePointsActive: !!session.doublePoints, // snapshot for THIS question only
+    doublePoints:       false,                  // consume the mentor's one-shot toggle
   };
 
   // Remove topic from available if all its questions are now used
@@ -149,14 +158,24 @@ function processAnswer(session, teamId, answerIdx) {
     ? Math.floor((session.timerRemaining / session.timerSeconds) * (POINTS[diff].correct * 0.5))
     : 0;
 
-  const baseChange  = correct ? POINTS[diff].correct : POINTS[diff].wrong;
-  const totalChange = correct ? baseChange + speedBonus : baseChange; // wrong is negative
+  const baseChange = correct ? POINTS[diff].correct : POINTS[diff].wrong;
+  let totalChange  = correct ? baseChange + speedBonus : baseChange; // wrong is negative
+
+  // ── Streak multiplier — 3 in a row = 1.2x, 5 in a row = 1.5x (correct answers only) ──
+  const prevStreak     = currentTeam.streak || 0;
+  const newStreak      = correct ? prevStreak + 1 : 0;
+  const streakMultiplier = correct ? (newStreak >= 5 ? 1.5 : newStreak >= 3 ? 1.2 : 1) : 1;
+  if (correct && streakMultiplier > 1) totalChange = Math.round(totalChange * streakMultiplier);
+
+  // ── Double points — mentor-armed, applies to both correct and wrong on this question ──
+  const doublePoints = !!session.doublePointsActive;
+  if (doublePoints) totalChange *= 2;
 
   // Apply score — floor at 0
   const updatedTeams = session.teams.map(t => {
     if (t.id !== teamId) return t;
     const newScore = Math.max(0, t.score + totalChange);
-    return { ...t, score: newScore };
+    return { ...t, score: newScore, streak: newStreak };
   });
 
   const roundEntry = {
@@ -171,6 +190,9 @@ function processAnswer(session, teamId, answerIdx) {
     correct,
     baseChange,
     speedBonus:   correct ? speedBonus : 0,
+    streak:          newStreak,
+    streakMultiplier: correct ? streakMultiplier : 1,
+    doublePoints,
     totalChange,
     totalScore:   updatedTeams.find(t => t.id === teamId).score,
   };
@@ -196,6 +218,7 @@ function processAnswer(session, teamId, answerIdx) {
     currentTeamIdx:  nextTeamIdx,
     currentQuestion: null,
     chosenTopic:     null,
+    doublePointsActive: false, // consumed
     _gameOver:       isDone,  // flag for socket to check
   };
 
@@ -205,6 +228,9 @@ function processAnswer(session, teamId, answerIdx) {
       correct,
       baseChange,
       speedBonus:   correct ? speedBonus : 0,
+      streak:          newStreak,
+      streakMultiplier: correct ? streakMultiplier : 1,
+      doublePoints,
       totalChange,
       teamId,
       teamName:     currentTeam.name,
@@ -225,11 +251,13 @@ function handleTimerExpiry(session) {
   if (!q || !currentTeam) return { ...session, status: 'round_result', timerRunning: false };
 
   const diff       = q.diff;
-  const baseChange = POINTS[diff].wrong; // negative
+  let baseChange   = POINTS[diff].wrong; // negative
+  const doublePoints = !!session.doublePointsActive;
+  if (doublePoints) baseChange *= 2;
 
   const updatedTeams = session.teams.map(t => {
     if (t.id !== currentTeam.id) return t;
-    return { ...t, score: Math.max(0, t.score + baseChange) };
+    return { ...t, score: Math.max(0, t.score + baseChange), streak: 0 };
   });
 
   const roundEntry = {
@@ -245,6 +273,9 @@ function handleTimerExpiry(session) {
     timedOut:    true,
     baseChange,
     speedBonus:  0,
+    streak:          0,
+    streakMultiplier: 1,
+    doublePoints,
     totalChange: baseChange,
     totalScore:  updatedTeams.find(t => t.id === currentTeam.id).score,
   };
@@ -265,10 +296,96 @@ function handleTimerExpiry(session) {
     currentTeamIdx:  nextTeamIdx,
     currentQuestion: null,
     chosenTopic:     null,
+    doublePointsActive: false, // consumed
     _gameOver:       isDone,
     _timedOut:       true,
     _timedOutTeam:   currentTeam,
     _lastRoundEntry: roundEntry,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// toggleDoublePoints — mentor arms/disarms a 2x-points question.
+// Takes effect the next time a team picks a topic (see teamPicksTopic).
+// ─────────────────────────────────────────────────────────────────
+function toggleDoublePoints(session, on) {
+  return { ...session, doublePoints: !!on };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// useFiftyFifty — removes two wrong options, leaving one correct +
+// one wrong. Up to FIFTY_FIFTY_MAX_USES per team (team mode) or per
+// player (individual mode) PER GAME — resets automatically because
+// it's stored on the session, and every new session starts fresh.
+// Returns { session, removedIndices, usesLeft } or { error }.
+// ─────────────────────────────────────────────────────────────────
+function useFiftyFifty(session, teamId) {
+  const currentTeam = session.teams[session.currentTeamIdx];
+  if (!currentTeam || currentTeam.id !== teamId) {
+    return { error: 'Not your turn' };
+  }
+  if (session.status !== 'playing' || !session.currentQuestion) {
+    return { error: 'No active question' };
+  }
+  const usesSoFar = currentTeam.lifelines?.fiftyFiftyUses || 0;
+  if (usesSoFar >= FIFTY_FIFTY_MAX_USES) {
+    return { error: `50/50 already used ${FIFTY_FIFTY_MAX_USES}/${FIFTY_FIFTY_MAX_USES} times this game` };
+  }
+  const q = session.currentQuestion;
+  const wrongIndices = q.opts.map((_, i) => i).filter(i => !q.ans.includes(i));
+  if (wrongIndices.length < 2) {
+    return { error: 'Not enough wrong options to remove' };
+  }
+  // Shuffle and remove all but one wrong option
+  const shuffled = [...wrongIndices].sort(() => Math.random() - 0.5);
+  const removedIndices = shuffled.slice(0, shuffled.length - 1);
+
+  const newUses = usesSoFar + 1;
+  const updatedTeams = session.teams.map(t =>
+    t.id === teamId ? { ...t, lifelines: { ...t.lifelines, fiftyFiftyUses: newUses } } : t
+  );
+
+  return {
+    session: { ...session, teams: updatedTeams },
+    removedIndices,
+    usesLeft: FIFTY_FIFTY_MAX_USES - newUses,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// useFiftyFiftyIndividual — same lifeline, individual/solo mode. Each
+// player has their own FIFTY_FIFTY_MAX_USES budget per game, tracked
+// on session.individualPlayers (keyed by socketId).
+// ─────────────────────────────────────────────────────────────────
+function useFiftyFiftyIndividual(session, socketId) {
+  if (session.status !== 'playing' || !session.currentQuestion) {
+    return { error: 'No active question' };
+  }
+  const players = session.individualPlayers || [];
+  const player = players.find(p => p.socketId === socketId);
+  if (!player) return { error: 'Player not found' };
+
+  const usesSoFar = player.fiftyFiftyUses || 0;
+  if (usesSoFar >= FIFTY_FIFTY_MAX_USES) {
+    return { error: `50/50 already used ${FIFTY_FIFTY_MAX_USES}/${FIFTY_FIFTY_MAX_USES} times this game` };
+  }
+  const q = session.currentQuestion;
+  const wrongIndices = q.opts.map((_, i) => i).filter(i => !q.ans.includes(i));
+  if (wrongIndices.length < 2) {
+    return { error: 'Not enough wrong options to remove' };
+  }
+  const shuffled = [...wrongIndices].sort(() => Math.random() - 0.5);
+  const removedIndices = shuffled.slice(0, shuffled.length - 1);
+
+  const newUses = usesSoFar + 1;
+  const updatedPlayers = players.map(p =>
+    p.socketId === socketId ? { ...p, fiftyFiftyUses: newUses } : p
+  );
+
+  return {
+    session: { ...session, individualPlayers: updatedPlayers },
+    removedIndices,
+    usesLeft: FIFTY_FIFTY_MAX_USES - newUses,
   };
 }
 
@@ -321,6 +438,8 @@ function publicView(session, revealAnswer = false) {
       color:       t.color,
       emoji:       t.emoji,
       score:       t.score,
+      streak:      t.streak || 0,
+      lifelines:   { fiftyFiftyUses: t.lifelines?.fiftyFiftyUses || 0, fiftyFiftyLeft: FIFTY_FIFTY_MAX_USES - (t.lifelines?.fiftyFiftyUses || 0) },
       playerCount: (t.players || []).length,
     })),
     currentTeamIdx:  session.currentTeamIdx,
@@ -336,6 +455,8 @@ function publicView(session, revealAnswer = false) {
     totalQuestions:  session.questions.length,
     usedCount:       session.usedQuestionIds.length,
     gameOver,        // true when the game has ended or is at its round limit
+    doublePoints:       !!session.doublePoints,       // armed for the next question
+    doublePointsActive: !!session.doublePointsActive, // active on the CURRENT question
 
     timerRunning:    session.timerRunning,
     timerRemaining:  session.timerRemaining,
@@ -361,6 +482,8 @@ function publicView(session, revealAnswer = false) {
       name:     p.name,
       avatar:   p.avatar,
       score:    p.score || 0,
+      fiftyFiftyUses: p.fiftyFiftyUses || 0,
+      fiftyFiftyLeft: FIFTY_FIFTY_MAX_USES - (p.fiftyFiftyUses || 0),
     })),
   };
 }
@@ -412,6 +535,9 @@ function roundSummary(session) {
     timedOut:     last.timedOut || false,
     baseChange:   last.baseChange,
     speedBonus:   last.speedBonus,
+    streak:          last.streak || 0,
+    streakMultiplier: last.streakMultiplier || 1,
+    doublePoints:    !!last.doublePoints,
     totalChange:  last.totalChange,
     totalScore:   last.totalScore,
     teams:        session.teams.map(t => ({ id:t.id, name:t.name, color:t.color, emoji:t.emoji, score:t.score })),
@@ -500,6 +626,7 @@ function individualFinalLeaderboard(session) {
 
 module.exports = {
   POINTS,
+  FIFTY_FIFTY_MAX_USES,
   createGameSession,
   teamPicksTopic,
   processAnswer,
@@ -511,4 +638,7 @@ module.exports = {
   handleIndividualTimerExpiry,
   individualRoundSummary,
   individualFinalLeaderboard,
+  toggleDoublePoints,
+  useFiftyFifty,
+  useFiftyFiftyIndividual,
 };
