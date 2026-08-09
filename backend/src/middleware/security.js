@@ -147,10 +147,14 @@ function createMentorToken() {
   return token;
 }
 
+function isValidMentorToken(token) {
+  return !!token && mentorTokens.has(token);
+}
+
 function requireMentorToken(req, res, next) {
   const token = req.headers['x-mentor-token'];
-  if (!token || !mentorTokens.has(token)) return res.status(401).json({ ok:false, error:'Unauthorized — mentor token required' });
+  if (!isValidMentorToken(token)) return res.status(401).json({ ok:false, error:'Unauthorized — mentor token required' });
   next();
 }
 
-module.exports = { rateLimit, sanitizeBody, blockInjection, securityHeaders, validateQuestion, validateSession, createMentorToken, requireMentorToken, verifyCredentials };
+module.exports = { rateLimit, sanitizeBody, blockInjection, securityHeaders, validateQuestion, validateSession, createMentorToken, requireMentorToken, isValidMentorToken, verifyCredentials };

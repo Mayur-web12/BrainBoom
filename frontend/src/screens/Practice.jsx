@@ -61,6 +61,8 @@ export function Practice() {
   const [idx, setIdx]           = useState(0);
   const [picked, setPicked]     = useState(null);     // selected option index
   const [stars, setStars]       = useState(0);
+  const [revealed, setRevealed] = useState(null); // {correct, correctIdx, explanation} — only known AFTER a real attempt, fetched from the server (never sent in bulk)
+  const [checking, setChecking] = useState(false);
   const [streak, setStreak]     = useState(0);
   const [bestStreak, setBest]   = useState(0);
   const [soundOn, setSoundOn]   = useState(true);
@@ -91,15 +93,15 @@ export function Practice() {
       const pool = shuffle(qs).slice(0, 15);
       if (pool.length === 0) { setLoading(false); setPhase('pick'); return; }
       setQuestions(pool);
-      setIdx(0); setPicked(null); setStars(0); setStreak(0); setBest(0);
+      setIdx(0); setPicked(null); setRevealed(null); setStars(0); setStreak(0); setBest(0);
       setPhase('quiz');
     } catch (_) {} finally { setLoading(false); }
   };
 
   const q = questions[idx];
-  const correctIdx = q?.ans?.[0];
+  const correctIdx = revealed?.correctIdx;
   const answered = picked !== null;
-  const isCorrect = answered && q?.ans?.includes(picked);
+  const isCorrect = revealed?.correct || false;
 
   // Read the question aloud when it appears
   useEffect(() => {
@@ -110,24 +112,37 @@ export function Practice() {
     return () => stopSpeaking();
   }, [idx, phase]); // eslint-disable-line
 
-  const choose = (i) => {
-    if (answered) return;
+  const choose = async (i) => {
+    if (answered || checking) return;
     setPicked(i);
-    const good = q.ans.includes(i);
-    if (good) {
-      playCorrect();
-      setStars(s => s + 1);
-      setStreak(s => { const n = s + 1; setBest(b => Math.max(b, n)); return n; });
-      if (soundOn) speak('Correct! ' + (q.exp || ''));
-    } else {
-      playWrong();
-      setStreak(0);
-      if (soundOn) speak('Not quite. ' + (q.exp || `The answer is ${q.opts[correctIdx]}.`));
+    setChecking(true);
+    try {
+      // Correctness is decided server-side and only for THIS one question, on a
+      // real attempt — never sent in bulk ahead of time (see security note on
+      // GET /questions). Same reveal-after-answer pattern as the live game.
+      const res = await api.checkPracticeAnswer(q.id, i);
+      setRevealed(res);
+      if (res.correct) {
+        playCorrect();
+        setStars(s => s + 1);
+        setStreak(s => { const n = s + 1; setBest(b => Math.max(b, n)); return n; });
+        if (soundOn) speak('Correct! ' + (res.explanation || ''));
+      } else {
+        playWrong();
+        setStreak(0);
+        if (soundOn) speak('Not quite. ' + (res.explanation || `The answer is ${q.opts[res.correctIdx]}.`));
+      }
+    } catch (_) {
+      // Network hiccup — let them try again rather than getting stuck
+      setPicked(null);
+    } finally {
+      setChecking(false);
     }
   };
 
   const next = () => {
     stopSpeaking();
+    setRevealed(null);
     if (idx + 1 >= questions.length) { setPhase('done'); return; }
     setIdx(i => i + 1); setPicked(null);
   };
@@ -224,7 +239,7 @@ export function Practice() {
       <div style={{ padding:'76px 18px 30px', maxWidth:1300, margin:'0 auto', width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:18 }}>
         {/* Left mascot — dummy placeholder, swap frontend/public/assets/characters/left-mascot.png with real art anytime */}
         <img src="/assets/characters/left-mascot.png" alt="" aria-hidden="true" className="practice-mascot practice-mascot-left"
-          style={{ animation: answered ? (isCorrect ? 'bounce .8s ease-in-out' : 'shake .5s ease') : 'float 4s ease-in-out infinite' }} />
+          style={{ animation: revealed ? (isCorrect ? 'bounce .8s ease-in-out' : 'shake .5s ease') : 'float 4s ease-in-out infinite' }} />
 
         <div style={{ maxWidth:640, width:'100%' }}>
         {/* progress bar */}
@@ -243,9 +258,11 @@ export function Practice() {
           <div style={{ display:'grid', gap:10 }}>
             {q.opts.map((opt, i) => {
               let bg = 'var(--c2)', border = '2px solid transparent';
-              if (answered) {
+              if (revealed) {
                 if (i === correctIdx) { bg = 'rgba(0,212,170,.18)'; border = '2px solid #00D4AA'; }
                 else if (i === picked) { bg = 'rgba(255,82,82,.15)'; border = '2px solid #FF5252'; }
+              } else if (answered && i === picked) {
+                bg = 'rgba(255,255,255,.08)'; // picked, awaiting server confirmation — neutral, no correct/wrong hint
               }
               return (
                 <button key={i} onClick={() => choose(i)} disabled={answered}
@@ -256,14 +273,20 @@ export function Practice() {
                   }}>
                   <span style={{ fontWeight:900, opacity:.6 }}>{String.fromCharCode(65 + i)}</span>
                   <span style={{ flex:1 }}>{opt}</span>
-                  {answered && i === correctIdx && <span>✅</span>}
-                  {answered && i === picked && i !== correctIdx && <span>❌</span>}
+                  {revealed && i === correctIdx && <span>✅</span>}
+                  {revealed && i === picked && i !== correctIdx && <span>❌</span>}
                 </button>
               );
             })}
           </div>
 
-          {answered && (
+          {answered && !revealed && (
+            <div style={{ marginTop:16, textAlign:'center', color:'var(--t2)', fontSize:'0.92rem' }}>
+              <Spinner /> Checking…
+            </div>
+          )}
+
+          {revealed && (
             <div style={{
               marginTop:16, padding:'14px 16px', borderRadius:12,
               background: isCorrect ? 'rgba(0,212,170,.12)' : 'rgba(255,193,7,.12)',
@@ -272,11 +295,11 @@ export function Practice() {
               <div style={{ fontWeight:800, marginBottom:4 }}>
                 {isCorrect ? '🎉 Correct! Well done!' : `💡 The answer is: ${q.opts[correctIdx]}`}
               </div>
-              {q.exp && <div className="fs-sm" style={{ lineHeight:1.6 }}>{q.exp}</div>}
+              {revealed.explanation && <div className="fs-sm" style={{ lineHeight:1.6 }}>{revealed.explanation}</div>}
             </div>
           )}
 
-          {answered && (
+          {revealed && (
             <button className="btn btn-primary btn-block btn-lg" style={{ marginTop:16 }} onClick={next}>
               {idx + 1 >= total ? '🏁 See My Results' : 'Next Question →'}
             </button>
@@ -286,7 +309,7 @@ export function Practice() {
 
         {/* Right mascot — dummy placeholder, swap frontend/public/assets/characters/right-mascot.png with real art anytime */}
         <img src="/assets/characters/right-mascot.png" alt="" aria-hidden="true" className="practice-mascot practice-mascot-right"
-          style={{ animation: answered ? (isCorrect ? 'bounce .8s ease-in-out .1s' : 'shake .5s ease .05s') : 'float 4s ease-in-out infinite .5s' }} />
+          style={{ animation: revealed ? (isCorrect ? 'bounce .8s ease-in-out .1s' : 'shake .5s ease .05s') : 'float 4s ease-in-out infinite .5s' }} />
       </div>
     </div>
   );

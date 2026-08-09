@@ -12,6 +12,15 @@ const { createGameSession } = require('../data/gameEngine');
 
 const MENTOR_NAME = process.env.MENTOR_NAME || 'Mentor';
 
+// Non-blocking check: is this request carrying a valid mentor token?
+// Used where a route needs different behavior for mentor vs. public callers,
+// rather than flatly requiring or flatly rejecting a token.
+const { isValidMentorToken } = require('../middleware/security');
+function callerIsMentor(req) {
+  const token = req.headers['x-mentor-token'];
+  return !!token && isValidMentorToken(token);
+}
+
 // Wrap async route handlers so a rejected Promise reaches Express's error
 // handler instead of crashing the process (Express 4 doesn't do this for you).
 const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -28,12 +37,36 @@ router.post('/auth/login', rateLimit({ windowMs:60000, max:5, message:'Too many 
 
 // ── QUESTION BANK ─────────────────────────────────────────────────────────
 // Reading the bank is public (students use it for Practice mode, mentor for the builder).
+// SECURITY: the answer key (`ans`) and explanation (`exp`, which often restates the
+// answer) must NEVER go to an unauthenticated caller — otherwise anyone can open
+// devtools, call this endpoint directly, and see every correct answer in the game
+// ahead of time. Only requests carrying a valid mentor token (the admin builder,
+// and Shared Screen mode which runs on the mentor's own authenticated device) get
+// the full data. Practice Mode gets answers back per-question, only after an
+// actual attempt, via POST /practice/check-answer below.
 router.get('/questions', ah(async (req, res) => {
   const { topic, diff } = req.query;
   let q = await db.getQuestions();
   if (topic) q = q.filter(x => x.topic === topic);
   if (diff && diff !== 'all') q = q.filter(x => x.diff === diff);
+  if (!callerIsMentor(req)) {
+    q = q.map(({ ans, exp, ...safe }) => safe);
+  }
   res.json({ ok: true, questions: q, total: q.length });
+}));
+
+// Practice Mode answer check — the ONLY way an unauthenticated client learns a
+// correct answer is by actually submitting an attempt for that ONE question,
+// same as the real live-game reveal-after-answer pattern. Never leaks the bank.
+router.post('/practice/check-answer', rateLimit({ windowMs:60000, max:120 }), ah(async (req, res) => {
+  const { questionId, answerIdx } = req.body || {};
+  if (!questionId || typeof answerIdx !== 'number') {
+    return res.status(400).json({ ok:false, error:'questionId and answerIdx required' });
+  }
+  const q = await db.findQuestion(questionId);
+  if (!q) return res.status(404).json({ ok:false, error:'Question not found' });
+  const correct = q.ans.includes(answerIdx);
+  res.json({ ok:true, correct, correctIdx: q.ans[0], explanation: q.exp || '' });
 }));
 
 // Mutating the bank requires a valid mentor token.

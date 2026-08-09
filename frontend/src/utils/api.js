@@ -43,6 +43,7 @@ export const api = {
   getTopics:       ()             => request('GET',    '/topics'),
   addTopic:        (topic)        => request('POST',   '/topics', topic),
   getQuestions:    (params)       => request('GET',    `/questions?${new URLSearchParams(params || {})}`),
+  checkPracticeAnswer: (questionId, answerIdx) => request('POST', '/practice/check-answer', { questionId, answerIdx }),
   addQuestion:     (question)     => request('POST',   '/questions', question),
   updateQuestion:  (id, question) => request('PUT',    `/questions/${id}`, question),
   deleteQuestion:  (id)           => request('DELETE', `/questions/${id}`),
