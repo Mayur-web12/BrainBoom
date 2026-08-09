@@ -29,6 +29,48 @@ const POINTS = {
 const FIFTY_FIFTY_MAX_USES = 3;
 
 // ─────────────────────────────────────────────────────────────────
+// Comeback Catch-Up Bonus — a flat point bonus for whoever is in LAST
+// place, but only during the final stretch of the game. Deliberately:
+//   - flat, not a multiplier (predictable, doesn't snowball)
+//   - only applies on a CORRECT answer (still a real quiz, not a handout)
+//   - only in the final rounds (a genuine "final stretch" comeback,
+//     not a crutch that removes the point of playing well all game)
+//   - ties for last place all qualify (no arbitrary tie-break)
+// ─────────────────────────────────────────────────────────────────
+const COMEBACK_BONUS_POINTS       = 125;
+const COMEBACK_BONUS_FINAL_ROUNDS = 3; // applies during the last N rounds of the game
+
+function isFinalStretch(session) {
+  const isIndividual = session.mode === 'individual';
+  const maxRounds = isIndividual
+    ? session.questionsPerTeam
+    : session.questionsPerTeam * session.teams.length;
+  // session.roundNumber is bumped at PICK time (teamPicksTopic), so once a
+  // question is active it already IS the round in progress. Before a pick,
+  // it still reflects the last COMPLETED round, so the round about to be
+  // played is roundNumber+1.
+  const roundInProgress = session.currentQuestion ? session.roundNumber : session.roundNumber + 1;
+  return roundInProgress > maxRounds - COMEBACK_BONUS_FINAL_ROUNDS;
+}
+
+// Team mode: which team id(s) currently qualify (ties for lowest score all qualify).
+function comebackEligibleTeamIds(session) {
+  if (!isFinalStretch(session)) return [];
+  const scores = session.teams.map(t => t.score);
+  const lowest = Math.min(...scores);
+  return session.teams.filter(t => t.score === lowest).map(t => t.id);
+}
+
+// Individual mode: which socketId(s) currently qualify.
+function comebackEligiblePlayerIds(session) {
+  if (!isFinalStretch(session)) return [];
+  const players = session.individualPlayers || [];
+  if (players.length === 0) return [];
+  const lowest = Math.min(...players.map(p => p.score || 0));
+  return players.filter(p => (p.score || 0) === lowest).map(p => p.socketId);
+}
+
+// ─────────────────────────────────────────────────────────────────
 // createGameSession
 // ─────────────────────────────────────────────────────────────────
 function createGameSession({ code, title, mentorId, teams, questions, timerSeconds, topicFilter, diffFilter, questionsPerTeam, mode }) {
@@ -171,6 +213,10 @@ function processAnswer(session, teamId, answerIdx) {
   const doublePoints = !!session.doublePointsActive;
   if (doublePoints) totalChange *= 2;
 
+  // ── Comeback Catch-Up Bonus — flat bonus for whoever's in last place, final rounds only ──
+  const comebackEligible = correct && comebackEligibleTeamIds(session).includes(teamId);
+  if (comebackEligible) totalChange += COMEBACK_BONUS_POINTS;
+
   // Apply score — floor at 0
   const updatedTeams = session.teams.map(t => {
     if (t.id !== teamId) return t;
@@ -193,6 +239,7 @@ function processAnswer(session, teamId, answerIdx) {
     streak:          newStreak,
     streakMultiplier: correct ? streakMultiplier : 1,
     doublePoints,
+    comebackBonus: comebackEligible,
     totalChange,
     totalScore:   updatedTeams.find(t => t.id === teamId).score,
   };
@@ -231,6 +278,7 @@ function processAnswer(session, teamId, answerIdx) {
       streak:          newStreak,
       streakMultiplier: correct ? streakMultiplier : 1,
       doublePoints,
+      comebackBonus: comebackEligible,
       totalChange,
       teamId,
       teamName:     currentTeam.name,
@@ -458,6 +506,13 @@ function publicView(session, revealAnswer = false) {
     doublePoints:       !!session.doublePoints,       // armed for the next question
     doublePointsActive: !!session.doublePointsActive, // active on the CURRENT question
 
+    // Comeback Catch-Up Bonus — true only when the team ABOUT TO ANSWER is
+    // currently in last place during the game's final rounds. Lets the
+    // frontend show a "🎯 Comeback Bonus available!" banner before they answer.
+    comebackBonusEligibleTeamIds: comebackEligibleTeamIds(session),
+    comebackBonusForCurrentTeam:  comebackEligibleTeamIds(session).includes(session.teams[session.currentTeamIdx]?.id),
+    comebackBonusPoints: COMEBACK_BONUS_POINTS,
+
     timerRunning:    session.timerRunning,
     timerRemaining:  session.timerRemaining,
     timerSeconds:    session.timerSeconds,
@@ -485,6 +540,7 @@ function publicView(session, revealAnswer = false) {
       fiftyFiftyUses: p.fiftyFiftyUses || 0,
       fiftyFiftyLeft: FIFTY_FIFTY_MAX_USES - (p.fiftyFiftyUses || 0),
     })),
+    comebackBonusEligiblePlayerIds: comebackEligiblePlayerIds(session),
   };
 }
 
@@ -538,6 +594,8 @@ function roundSummary(session) {
     streak:          last.streak || 0,
     streakMultiplier: last.streakMultiplier || 1,
     doublePoints:    !!last.doublePoints,
+    comebackBonus:   !!last.comebackBonus,
+    comebackBonusPoints: COMEBACK_BONUS_POINTS,
     totalChange:  last.totalChange,
     totalScore:   last.totalScore,
     teams:        session.teams.map(t => ({ id:t.id, name:t.name, color:t.color, emoji:t.emoji, score:t.score })),
@@ -593,6 +651,7 @@ function individualRoundSummary(session) {
       answered: ans !== undefined,
       correct:  ans?.correct || false,
       totalChange: ans?.totalChange || 0,
+      comebackBonus: ans?.comebackBonus || false,
       newScore: p.score || 0,
     };
   }).sort((a,b) => b.newScore - a.newScore);
@@ -627,6 +686,10 @@ function individualFinalLeaderboard(session) {
 module.exports = {
   POINTS,
   FIFTY_FIFTY_MAX_USES,
+  COMEBACK_BONUS_POINTS,
+  COMEBACK_BONUS_FINAL_ROUNDS,
+  comebackEligibleTeamIds,
+  comebackEligiblePlayerIds,
   createGameSession,
   teamPicksTopic,
   processAnswer,

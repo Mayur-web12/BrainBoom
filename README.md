@@ -1,64 +1,38 @@
 # 🦁 QuizQuest 3.0 — Real-Time Team Battle Platform
 
-**QuizQuest** is a full-stack, real-time quiz platform designed for **team-based competitions, individual practice, shared-screen games, and live mentor-controlled quiz sessions**.
+A full-stack, real-time quiz game with turn-based team competition.
 
-The application uses **React 18** for the frontend, **Node.js + Express + Socket.IO** for the backend, and **PostgreSQL** for persistent data storage.
-
----
-
-## ✨ Features
-
-* 🎯 **Real-time team quiz battles**
-* 👥 **Multiple teams in the same game**
-* 🧑‍🏫 **Mentor dashboard**
-* 🔐 **Mentor authentication**
-* 🎮 **Student join using a game code**
-* 🔄 **Real-time game updates with Socket.IO**
-* ⏱️ **Configurable question timer**
-* 🔀 **Turn-based team answering**
-* 🏆 **Steal chance when a team answers incorrectly**
-* 📊 **Live scores and leaderboard**
-* 🥇 **Final podium and rankings**
-* 📺 **Shared-screen game mode**
-* 👤 **Individual/solo player mode**
-* 📚 **Practice mode**
-* 📝 **Mentor question management**
-* 🗂️ **Topic management**
-* 💾 **Persistent questions, topics, and game results**
-* 📱 **Responsive UI**
-* 🔊 **Correct/wrong/winner sound effects**
+Built with **Node.js + Socket.IO** for the backend and **React 18** for the frontend.
 
 ---
 
-## 🛠️ Technology Stack
+## 🎯 What is QuizQuest?
 
-| Layer                       | Technology                       |
-| --------------------------- | -------------------------------- |
-| **Frontend**                | React 18                         |
-| **Frontend Build**          | Create React App / react-scripts |
-| **Backend**                 | Node.js                          |
-| **API**                     | Express.js                       |
-| **Real-time Communication** | Socket.IO                        |
-| **Database**                | PostgreSQL                       |
-| **PostgreSQL Driver**       | `pg`                             |
-| **Authentication**          | Mentor token + session storage   |
-| **Styling**                 | Custom CSS                       |
-| **Package Manager**         | npm                              |
-| **Deployment Frontend**     | Vercel                           |
-| **Deployment Backend**      | Render                           |
-| **Database Hosting**        | Neon PostgreSQL                  |
+QuizQuest is a real-time quiz platform designed for **team-based competitions, individual practice, shared-screen games, and mentor-controlled quiz sessions**.
+
+It allows mentors to create quiz sessions, manage teams, control the game, and view live scores while students join using a game code and compete in real time.
 
 ---
 
-## 📁 Project Structure
+## 💡 Why We Built QuizQuest
 
-```text
-quizquest/
-├── frontend/
-├── backend/
-├── render.yaml
-└── README.md
-```
+QuizQuest was built to make quiz competitions more **interactive, engaging, and competitive**.
+
+The platform provides:
+
+- 🎯 Real-time team quiz battles
+- 👥 Multiple teams in the same game
+- 🧑‍🏫 Mentor-controlled quiz sessions
+- 🎮 Students joining with a game code
+- 🔄 Real-time game updates
+- ⏱️ Configurable question timer
+- 🏆 Turn-based team competition
+- 🔀 Steal chances after incorrect answers
+- 📊 Live scores and leaderboard
+- 🥇 Final rankings and podium
+- 📺 Shared-screen game mode
+- 👤 Individual/solo player mode
+- 📚 Practice mode
 
 ---
 
@@ -66,31 +40,33 @@ quizquest/
 
 ### 🧑‍🏫 Mentor
 
-1. **Open `/mentor`**
-2. **Login**
-3. **Open the Sessions section**
-4. **Create a session**
-5. **Configure the quiz**
-6. **Select topics**
-7. **Configure teams**
-8. **Create the session**
-9. **Share the game code with students**
-10. **Open Live Control**
-11. **Start the game**
-12. **Control questions and timer**
-13. **View scores and leaderboard**
+1. Open the **Mentor Login**.
+2. Login to the mentor dashboard.
+3. Open the **Sessions** section.
+4. Click **Create Session**.
+5. Configure the quiz.
+6. Select the required topics.
+7. Configure the teams.
+8. Create the session and get the **game code**.
+9. Share the game code with the students.
+10. Open **Live Control**.
+11. Start the game.
+12. Control questions and the timer.
+13. View live scores and the leaderboard.
+
+---
 
 ### 👨‍🎓 Students
 
-1. **Open the QuizQuest website**
-2. **Select Student**
-3. **Enter a name**
-4. **Enter the game code**
-5. **Select an avatar**
-6. **Select a team**
-7. **Wait in the lobby**
-8. **Answer questions when their team gets a turn**
-9. **View scores and final leaderboard**
+1. Open the **QuizQuest website**.
+2. Select **Student**.
+3. Enter your name.
+4. Enter the **game code** shared by the mentor.
+5. Select an avatar.
+6. Select a team.
+7. Wait in the lobby.
+8. Answer questions when your team gets a turn.
+9. View the scores and final leaderboard.
 
 ---
 
@@ -107,41 +83,10 @@ Answer
    │
    ├── Correct → Score
    │
-   └── Wrong → Steal chance
+   └── Wrong → Steal Chance
                     ↓
                  Team B
                     ↓
                  Team C
                     ↓
                  Team D
-```
-
-The **starting team rotates between questions**.
-
----
-
-## ⚡ Scoring
-
-| Attempt           |                  Score |
-| ----------------- | ---------------------: |
-| **Original team** | **100% + speed bonus** |
-| **First steal**   |                **60%** |
-| **Second steal**  |                **40%** |
-| **Later steal**   |                **20%** |
-
-The original team can receive an additional **speed bonus based on the remaining timer**.
-
----
-
-## 🎯 Practice Mode
-
-**Practice Mode** allows an individual student to practice without creating or joining a live game.
-
-### Features include:
-
-* **No game code required**
-* **Untimed questions**
-* **Instant answer feedback**
-* **Explanations**
-* **Read-aloud support**
-* **Star/favorite functionality**

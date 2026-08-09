@@ -466,6 +466,17 @@ export function GameScreen() {
           ⚡ DOUBLE POINTS — this question is worth 2x! ⚡
         </div>
       )}
+      {/* Comeback Catch-Up Bonus — flat bonus for whoever's in last place, final rounds only.
+          Team mode: shown when the CURRENTLY ANSWERING team qualifies (visible to all, like
+          double points). Individual mode: shown only to the viewing player if THEY qualify —
+          other players don't need to know someone else is behind. */}
+      {(isIndividual
+        ? gs.comebackBonusEligiblePlayerIds?.includes(state.player?.socketId)
+        : gs.comebackBonusForCurrentTeam) && (
+        <div style={{margin:'10px 18px 0',padding:'8px 14px',borderRadius:12,background:'linear-gradient(135deg,rgba(76,175,80,.22),rgba(0,212,170,.18))',border:'2px solid rgba(76,175,80,.5)',textAlign:'center',fontWeight:900,color:'var(--green)',animation:'pulse 1.2s infinite'}}>
+          🎯 COMEBACK BONUS — get this right for +{gs.comebackBonusPoints||125} extra pts! 🎯
+        </div>
+      )}
       <div style={{flex:1,padding:'14px 18px',maxWidth:720,margin:'0 auto',width:'100%'}}>
         {isIndividual ? (
           <div style={{padding:'10px 14px',borderRadius:14,marginBottom:12,display:'flex',alignItems:'center',gap:10,background:'rgba(76,175,80,.15)',border:'2px solid rgba(76,175,80,.5)',animation:!answered?'glow 2s infinite':''}}>
@@ -738,6 +749,7 @@ export function RoundResult() {
             {correct&&roundResult.result?.speedBonus>0&&<span className="badge b-yellow" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>⚡ +{roundResult.result.speedBonus}</span>}
             {correct&&roundResult.result?.streakMultiplier>1&&<span className="badge b-yellow" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>🔥 x{roundResult.result.streakMultiplier} streak</span>}
             {roundResult.result?.doublePoints&&<span className="badge b-purple" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>⚡ 2x double points</span>}
+            {roundResult.result?.comebackBonus&&<span className="badge b-green" style={{fontSize:'0.8rem',marginLeft:8,verticalAlign:'middle'}}>🎯 +{roundResult.result?.comebackBonusPoints||125} comeback bonus</span>}
           </div>
           <div className="fl fla flc gap2 mb3" style={{justifyContent:'center',marginBottom:12}}>
             <span style={{padding:'4px 10px',borderRadius:20,background:`${meta.color}22`,border:`1.5px solid ${meta.color}44`,fontSize:'0.88rem',fontWeight:700,color:meta.color}}>{meta.emoji} {summary?.topic}</span>
@@ -1050,24 +1062,38 @@ export function SharedGameScreen() {
     sharedToast(left > 0 ? `🎯 50/50 used — ${left} left for ${ct.name}!` : `🎯 50/50 used — that was ${ct.name}'s last one!`, 'success');
   };
 
+  // Comeback Catch-Up Bonus — same design as team/solo mode: flat bonus for
+  // whoever's in last place, only during the final 3 rounds, only on correct.
+  const SHARED_COMEBACK_BONUS_POINTS       = 125;
+  const SHARED_COMEBACK_BONUS_FINAL_ROUNDS = 3;
+  const sharedTotalRounds  = qPerTeam * teamCount;
+  const sharedRoundInProgress = rounds.length + 1;
+  const sharedIsFinalStretch  = sharedRoundInProgress > sharedTotalRounds - SHARED_COMEBACK_BONUS_FINAL_ROUNDS;
+  const sharedLowestScore     = teams.length ? Math.min(...teams.map(t=>t.score)) : 0;
+  const sharedComebackEligibleTeamIds = sharedIsFinalStretch
+    ? teams.filter(t=>t.score===sharedLowestScore).map(t=>t.id)
+    : [];
+
   const submitAnswer = idx => {
     if (answeredIdx !== null || phase !== 'question') return;
     setTimerActive(false);
     setAnsweredIdx(idx);
     const correct = question.ans.includes(idx);
     const diff    = question.diff;
-    const speedBonus = correct ? Math.floor((timer/timerSecs)*DIFF_PTS[diff].correct*0.5) : 0;
-    const totalChange = correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong;
     const ct = teams[curTeamIdx];
+    const speedBonus = correct ? Math.floor((timer/timerSecs)*DIFF_PTS[diff].correct*0.5) : 0;
+    const comebackBonus = correct && sharedComebackEligibleTeamIds.includes(ct.id) ? SHARED_COMEBACK_BONUS_POINTS : 0;
+    const totalChange = (correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong) + comebackBonus;
     setTeams(p => p.map(t => t.id===ct.id ? {...t,score:Math.max(0,t.score+totalChange)} : t));
-    setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,question:question.q,correctAns:question.opts[question.ans[0]]}]);
+    setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,comebackBonus:comebackBonus>0,question:question.q,correctAns:question.opts[question.ans[0]]}]);
     setTeamRounds(p => ({...p,[ct.id]:(p[ct.id]||0)+1}));
     const ei = Math.floor(Math.random()*FEEDBACK_EMOJIS_CORRECT.length);
     setFeedback({correct,change:totalChange,
       emoji1:correct?FEEDBACK_EMOJIS_CORRECT[ei]:FEEDBACK_EMOJIS_WRONG[ei],
       emoji2:correct?FEEDBACK_EMOJIS_CORRECT[(ei+1)%10]:FEEDBACK_EMOJIS_WRONG[(ei+1)%10],
       timedOut:false,teamColor:ct.color,teamEmoji:ct.emoji,teamName:ct.name,
-      correctAns:question.opts[question.ans[0]],explanation:question.exp||'',speedBonus:correct?speedBonus:0});
+      correctAns:question.opts[question.ans[0]],explanation:question.exp||'',speedBonus:correct?speedBonus:0,
+      comebackBonus:comebackBonus>0,comebackBonusPoints:SHARED_COMEBACK_BONUS_POINTS});
     setPhase('feedback');
   };
 
@@ -1327,6 +1353,12 @@ export function SharedGameScreen() {
               </div>
             </div>
           )}
+          {/* COMEBACK CATCH-UP BONUS — shown when the CURRENT team qualifies (last place, final rounds) */}
+          {answeredIdx===null && timer>0 && sharedComebackEligibleTeamIds.includes(ct.id) && (
+            <div style={{padding:'10px 14px',borderRadius:12,marginBottom:10,background:'linear-gradient(135deg,rgba(76,175,80,.2),rgba(0,212,170,.15))',border:'2px solid rgba(76,175,80,.5)',textAlign:'center',fontWeight:800,color:'var(--green)',animation:'pulse 1.4s infinite',fontSize:'0.95rem'}}>
+              🎯 COMEBACK BONUS — get this right for +{SHARED_COMEBACK_BONUS_POINTS} extra pts! 🎯
+            </div>
+          )}
           {/* 50/50 LIFELINE — shared across the answering team, 3 uses per game */}
           {answeredIdx===null && timer>0 && (
             <div className="fl fla flb mb2" style={{marginBottom:8,flexWrap:'wrap',gap:8}}>
@@ -1419,6 +1451,7 @@ export function SharedGameScreen() {
             </div>
             <div style={{fontSize:'1.05rem',fontWeight:700,color:'var(--t2)',marginBottom:14}}>points</div>
             {correct&&f.speedBonus>0&&<div className="badge b-yellow" style={{fontSize:'0.95rem',padding:'6px 16px',marginBottom:14}}>⚡ +{f.speedBonus} speed bonus!</div>}
+            {f.comebackBonus&&<div className="badge b-green" style={{fontSize:'0.95rem',padding:'6px 16px',marginBottom:14,marginLeft:8}}>🎯 +{f.comebackBonusPoints||125} comeback bonus!</div>}
             <div style={{background:'rgba(76,175,80,.1)',border:'1px solid rgba(76,175,80,.35)',borderRadius:12,padding:'12px 16px',textAlign:'left',marginBottom:f.explanation?10:0}}>
               <span className="grn fw8">✅ Correct answer: {f.correctAns}</span>
             </div>

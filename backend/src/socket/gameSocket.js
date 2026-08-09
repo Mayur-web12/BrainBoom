@@ -322,7 +322,11 @@ module.exports = function initSocket(io) {
         ? Math.floor((session.timerRemaining / session.timerSeconds) * (POINTS[diff].correct * 0.5))
         : 0;
       const baseChange  = correct ? POINTS[diff].correct : POINTS[diff].wrong;
-      const totalChange = correct ? baseChange + speedBonus : baseChange;
+      let totalChange   = correct ? baseChange + speedBonus : baseChange;
+
+      // ── Comeback Catch-Up Bonus — flat bonus for whoever's in last place, final rounds only ──
+      const comebackEligible = correct && engine.comebackEligiblePlayerIds(session).includes(socket.id);
+      if (comebackEligible) totalChange += engine.COMEBACK_BONUS_POINTS;
 
       // Update this player's score
       const newScore = Math.max(0, (player.score || 0) + totalChange);
@@ -333,7 +337,7 @@ module.exports = function initSocket(io) {
         ...s,
         currentRoundAnswers: {
           ...(s.currentRoundAnswers || {}),
-          [socket.id]: { answerIdx, correct, totalChange, newScore, name: player.name, avatar: player.avatar },
+          [socket.id]: { answerIdx, correct, totalChange, newScore, comebackBonus: comebackEligible, name: player.name, avatar: player.avatar },
         },
         individualPlayers: (s.individualPlayers || []).map(p =>
           p.socketId === socket.id ? { ...p, score: newScore } : p
@@ -357,6 +361,7 @@ module.exports = function initSocket(io) {
         avatar: player.avatar,
         correct,
         totalChange,
+        comebackBonus: comebackEligible,
         newScore,
         answeredCount,
         totalPlayers,
