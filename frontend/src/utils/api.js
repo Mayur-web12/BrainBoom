@@ -44,6 +44,7 @@ export const api = {
   addTopic:        (topic)        => request('POST',   '/topics', topic),
   getQuestions:    (params)       => request('GET',    `/questions?${new URLSearchParams(params || {})}`),
   checkPracticeAnswer: (questionId, answerIdx) => request('POST', '/practice/check-answer', { questionId, answerIdx }),
+  fiftyFifty:      (questionId)   => request('POST',   `/questions/${questionId}/fifty-fifty`),
   addQuestion:     (question)     => request('POST',   '/questions', question),
   updateQuestion:  (id, question) => request('PUT',    `/questions/${id}`, question),
   deleteQuestion:  (id)           => request('DELETE', `/questions/${id}`),

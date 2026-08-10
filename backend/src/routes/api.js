@@ -69,6 +69,22 @@ router.post('/practice/check-answer', rateLimit({ windowMs:60000, max:120 }), ah
   res.json({ ok:true, correct, correctIdx: q.ans[0], explanation: q.exp || '' });
 }));
 
+// 50/50 lifeline for unauthenticated/local-play clients (Shared Screen, Team, Solo
+// modes that grade themselves in the browser). The client never receives `ans` for
+// these callers (see GET /questions above) so it cannot compute which two options
+// are safe to hide — it asks the server to do it instead. The response only ever
+// contains WRONG option indices to remove; it never reveals which option(s) are
+// correct, so it leaks no more information than the lifeline is supposed to give.
+router.post('/questions/:id/fifty-fifty', rateLimit({ windowMs:60000, max:120 }), ah(async (req, res) => {
+  const q = await db.findQuestion(req.params.id);
+  if (!q) return res.status(404).json({ ok:false, error:'Question not found' });
+  const wrongIndices = q.opts.map((_, i) => i).filter(i => !q.ans.includes(i));
+  if (wrongIndices.length < 2) return res.status(400).json({ ok:false, error:'Not enough wrong options for 50/50' });
+  const shuffled = [...wrongIndices].sort(() => Math.random() - 0.5);
+  const removed  = shuffled.slice(0, shuffled.length - 1); // leave exactly one wrong option standing
+  res.json({ ok:true, removed });
+}));
+
 // Mutating the bank requires a valid mentor token.
 // Add a new question to the bank
 router.post('/questions', requireMentorToken, rateLimit({ windowMs:60000, max:30 }), validateQuestion, ah(async (req, res) => {

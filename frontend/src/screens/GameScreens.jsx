@@ -934,18 +934,39 @@ export function SharedGameScreen() {
   useEffect(() => {
     if (timerActive && timer === 0 && prevTimerRef.current !== 0 && phase === 'question' && answeredIdx === null) {
       setTimerActive(false);
+      setAnsweredIdx(-1);
       const diff    = question?.diff || 'easy';
       const penalty = DIFF_PTS[diff].wrong;
       const ct      = teams[curTeamIdx];
+      const q       = question;
       setTeams(p => p.map(t => t.id === ct.id ? { ...t, score: Math.max(0, t.score - penalty) } : t));
-      const entry = { teamId:ct.id, teamName:ct.name, topic:chosenTopic, diff, correct:false, timedOut:true, totalChange:-penalty, question:question?.q||'', correctAns:question?.opts[question?.ans[0]]||'' };
-      setRounds(p => [...p, entry]);
-      setTeamRounds(p => ({...p, [ct.id]:(p[ct.id]||0)+1}));
-      setFeedback({ correct:false, change:-penalty, emoji1:'⏰', emoji2:'😱', timedOut:true, teamColor:ct.color, teamEmoji:ct.emoji, teamName:ct.name, correctAns:question?.opts[question?.ans[0]]||'', explanation:question?.exp||'' });
-      setAnsweredIdx(-1);
-      setPhase('feedback');
       // Toast notification for time up
       if (typeof sharedToast === 'function') sharedToast("⏰ Time's Up! " + ct.name + " missed the question. −" + penalty + " pts", 'error');
+
+      // The client was never given `ans` for this question (see GET /questions —
+      // the answer key is withheld from unauthenticated callers so it can't be read
+      // from devtools ahead of time). Ask the server which option was correct so we
+      // can reveal it now that the round is over, instead of reading a field that
+      // was never sent and crashing.
+      const revealAnswer = q?.id ? api.checkPracticeAnswer(q.id, -1) : Promise.resolve({ correctIdx:null, explanation:'' });
+      revealAnswer
+        .then(({ correctIdx, explanation }) => {
+          const correctAns = (q && correctIdx != null) ? q.opts[correctIdx] : '';
+          const entry = { teamId:ct.id, teamName:ct.name, topic:chosenTopic, diff, correct:false, timedOut:true, totalChange:-penalty, question:q?.q||'', correctAns };
+          setRounds(p => [...p, entry]);
+          setTeamRounds(p => ({...p, [ct.id]:(p[ct.id]||0)+1}));
+          setFeedback({ correct:false, correctIdx, change:-penalty, emoji1:'⏰', emoji2:'😱', timedOut:true, teamColor:ct.color, teamEmoji:ct.emoji, teamName:ct.name, correctAns, explanation:explanation||'' });
+          setPhase('feedback');
+        })
+        .catch(() => {
+          // Still move the game forward even if the answer couldn't be fetched —
+          // a stuck screen is worse than a missing explanation.
+          const entry = { teamId:ct.id, teamName:ct.name, topic:chosenTopic, diff, correct:false, timedOut:true, totalChange:-penalty, question:q?.q||'', correctAns:'' };
+          setRounds(p => [...p, entry]);
+          setTeamRounds(p => ({...p, [ct.id]:(p[ct.id]||0)+1}));
+          setFeedback({ correct:false, correctIdx:null, change:-penalty, emoji1:'⏰', emoji2:'😱', timedOut:true, teamColor:ct.color, teamEmoji:ct.emoji, teamName:ct.name, correctAns:'(unable to load — check connection)', explanation:'' });
+          setPhase('feedback');
+        });
     }
     prevTimerRef.current = timer;
   });
@@ -1052,14 +1073,19 @@ export function SharedGameScreen() {
       const ok = window.confirm(`${ct.name} has 1 use of 50/50 remaining. Use it now? This is the final use for this game.`);
       if (!ok) return;
     }
-    const wrongIndices = question.opts.map((_,i)=>i).filter(i => !question.ans.includes(i));
-    if (wrongIndices.length < 2) return;
-    const shuffled = [...wrongIndices].sort(() => Math.random() - 0.5);
-    const removed = shuffled.slice(0, shuffled.length - 1);
-    setRemovedOpts(removed);
-    setFiftyFiftyUsed(p => ({ ...p, [ct.id]: usesSoFar + 1 }));
-    const left = SHARED_FIFTY_FIFTY_MAX - (usesSoFar + 1);
-    sharedToast(left > 0 ? `🎯 50/50 used — ${left} left for ${ct.name}!` : `🎯 50/50 used — that was ${ct.name}'s last one!`, 'success');
+    // The client doesn't have `ans` (withheld by the server for unauthenticated
+    // callers — see GET /questions), so it can't work out which two options are
+    // safe to hide on its own. Ask the server, which reveals only the WRONG
+    // indices to remove and never which option is correct.
+    api.fiftyFifty(question.id)
+      .then(({ removed }) => {
+        if (!removed || removed.length < 2) return;
+        setRemovedOpts(removed);
+        setFiftyFiftyUsed(p => ({ ...p, [ct.id]: usesSoFar + 1 }));
+        const left = SHARED_FIFTY_FIFTY_MAX - (usesSoFar + 1);
+        sharedToast(left > 0 ? `🎯 50/50 used — ${left} left for ${ct.name}!` : `🎯 50/50 used — that was ${ct.name}'s last one!`, 'success');
+      })
+      .catch(() => sharedToast('Could not use 50/50 — please check your connection and try again.', 'error'));
   };
 
   // Comeback Catch-Up Bonus — same design as team/solo mode: flat bonus for
@@ -1077,24 +1103,40 @@ export function SharedGameScreen() {
   const submitAnswer = idx => {
     if (answeredIdx !== null || phase !== 'question') return;
     setTimerActive(false);
-    setAnsweredIdx(idx);
-    const correct = question.ans.includes(idx);
-    const diff    = question.diff;
-    const ct = teams[curTeamIdx];
-    const speedBonus = correct ? Math.floor((timer/timerSecs)*DIFF_PTS[diff].correct*0.5) : 0;
-    const comebackBonus = correct && sharedComebackEligibleTeamIds.includes(ct.id) ? SHARED_COMEBACK_BONUS_POINTS : 0;
-    const totalChange = (correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong) + comebackBonus;
-    setTeams(p => p.map(t => t.id===ct.id ? {...t,score:Math.max(0,t.score+totalChange)} : t));
-    setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,comebackBonus:comebackBonus>0,question:question.q,correctAns:question.opts[question.ans[0]]}]);
-    setTeamRounds(p => ({...p,[ct.id]:(p[ct.id]||0)+1}));
-    const ei = Math.floor(Math.random()*FEEDBACK_EMOJIS_CORRECT.length);
-    setFeedback({correct,change:totalChange,
-      emoji1:correct?FEEDBACK_EMOJIS_CORRECT[ei]:FEEDBACK_EMOJIS_WRONG[ei],
-      emoji2:correct?FEEDBACK_EMOJIS_CORRECT[(ei+1)%10]:FEEDBACK_EMOJIS_WRONG[(ei+1)%10],
-      timedOut:false,teamColor:ct.color,teamEmoji:ct.emoji,teamName:ct.name,
-      correctAns:question.opts[question.ans[0]],explanation:question.exp||'',speedBonus:correct?speedBonus:0,
-      comebackBonus:comebackBonus>0,comebackBonusPoints:SHARED_COMEBACK_BONUS_POINTS});
-    setPhase('feedback');
+    setAnsweredIdx(idx); // locks the option buttons immediately, before the network round-trip
+    const diff = question.diff;
+    const ct   = teams[curTeamIdx];
+    const q    = question;
+
+    // The client never received `q.ans` (the server withholds the answer key from
+    // unauthenticated callers — see GET /questions — so it can't be read from
+    // devtools before anyone answers). Grading happens server-side instead, the
+    // same way Practice Mode already does it.
+    api.checkPracticeAnswer(q.id, idx)
+      .then(({ correct, correctIdx, explanation }) => {
+        const speedBonus    = correct ? Math.floor((timer/timerSecs)*DIFF_PTS[diff].correct*0.5) : 0;
+        const comebackBonus = correct && sharedComebackEligibleTeamIds.includes(ct.id) ? SHARED_COMEBACK_BONUS_POINTS : 0;
+        const totalChange   = (correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong) + comebackBonus;
+        const correctAns    = correctIdx != null ? q.opts[correctIdx] : '';
+        setTeams(p => p.map(t => t.id===ct.id ? {...t,score:Math.max(0,t.score+totalChange)} : t));
+        setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,comebackBonus:comebackBonus>0,question:q.q,correctAns}]);
+        setTeamRounds(p => ({...p,[ct.id]:(p[ct.id]||0)+1}));
+        const ei = Math.floor(Math.random()*FEEDBACK_EMOJIS_CORRECT.length);
+        setFeedback({correct,correctIdx,change:totalChange,
+          emoji1:correct?FEEDBACK_EMOJIS_CORRECT[ei]:FEEDBACK_EMOJIS_WRONG[ei],
+          emoji2:correct?FEEDBACK_EMOJIS_CORRECT[(ei+1)%10]:FEEDBACK_EMOJIS_WRONG[(ei+1)%10],
+          timedOut:false,teamColor:ct.color,teamEmoji:ct.emoji,teamName:ct.name,
+          correctAns,explanation:explanation||'',speedBonus:correct?speedBonus:0,
+          comebackBonus:comebackBonus>0,comebackBonusPoints:SHARED_COMEBACK_BONUS_POINTS});
+        setPhase('feedback');
+      })
+      .catch(() => {
+        // Don't strand the game on a blank/frozen screen if the request fails —
+        // unlock the buttons and let the team try again.
+        sharedToast('Could not check your answer — please check your connection and try again.', 'error');
+        setAnsweredIdx(null);
+        setTimerActive(true);
+      });
   };
 
   const nextTurn = () => {
@@ -1382,7 +1424,10 @@ export function SharedGameScreen() {
               let cls='opt-btn'; let sty={};
               const isRemoved = removedOpts.includes(i);
               if (answeredIdx!==null) {
-                if (q.ans.includes(i)) cls+=' opt-correct';
+                // correctIdx only exists once the server has graded the answer
+                // (see submitAnswer) — the client is never sent the answer key
+                // up front, so there's nothing to highlight until then.
+                if (feedback && i===feedback.correctIdx) cls+=' opt-correct';
                 else if (i===answeredIdx) cls+=' opt-wrong';
                 else sty.opacity=.3;
               } else if (isRemoved) {
