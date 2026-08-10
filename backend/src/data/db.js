@@ -48,6 +48,29 @@ if (USE_PG) {
     return pool.query(text, params);
   }
 
+  // ── IN-MEMORY QUESTION CACHE ────────────────────────────────────────────────
+  // getQuestions()/findQuestion() are now called on the hot path — once per
+  // click, for grading every answer and every 50/50 use (see /practice/check-
+  // answer and /questions/:id/fifty-fifty in routes/api.js). Hitting Neon over
+  // the public internet for each of those was the main source of the "slow to
+  // respond" lag: every click paid a full network round trip to the database
+  // on top of the round trip to this server. The question bank changes rarely
+  // (only when a mentor adds/edits/deletes a question), so it's cheap and safe
+  // to keep an in-memory mirror and serve reads from it, writing through to
+  // Postgres (for durability) on every mutation.
+  let questionCache = null;
+
+  async function loadQuestionCache() {
+    const { rows } = await query('SELECT data FROM questions ORDER BY created_at ASC');
+    questionCache = rows.map(r => r.data);
+    return questionCache;
+  }
+
+  async function ensureQuestionCache() {
+    if (!questionCache) await loadQuestionCache();
+    return questionCache;
+  }
+
   async function createSchema() {
     await query(`
       CREATE TABLE IF NOT EXISTS questions (
@@ -97,22 +120,27 @@ if (USE_PG) {
     async init() {
       await createSchema();
       await seedIfEmpty();
-      const { rows: [{ count: qc }] } = await query('SELECT COUNT(*)::int AS count FROM questions');
+      await loadQuestionCache(); // warm the cache immediately so the first game doesn't pay for it
+      const qc = questionCache.length;
       const { rows: [{ count: tc }] } = await query('SELECT COUNT(*)::int AS count FROM topics');
       const { rows: [{ count: rc }] } = await query('SELECT COUNT(*)::int AS count FROM results');
-      console.log(`[db:pg] Ready — ${qc} questions, ${tc} topics, ${rc} saved results. (PostgreSQL)`);
+      console.log(`[db:pg] Ready — ${qc} questions, ${tc} topics, ${rc} saved results. (PostgreSQL, question bank cached in memory)`);
     },
 
     async getQuestions() {
-      const { rows } = await query('SELECT data FROM questions ORDER BY created_at ASC');
-      return rows.map(r => r.data);
+      const cache = await ensureQuestionCache();
+      return cache.map(q => ({ ...q }));
     },
     async findQuestion(id) {
-      const { rows } = await query('SELECT data FROM questions WHERE id = $1', [id]);
-      return rows[0] ? rows[0].data : null;
+      const cache = await ensureQuestionCache();
+      const q = cache.find(x => x.id === id);
+      return q ? { ...q } : null;
     },
     async addQuestion(q) {
       await query('INSERT INTO questions (id, data) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET data = $2', [q.id, q]);
+      const cache = await ensureQuestionCache();
+      const idx = cache.findIndex(x => x.id === q.id);
+      if (idx !== -1) cache[idx] = { ...q }; else cache.push({ ...q });
       return { ...q };
     },
     async updateQuestion(id, patch) {
@@ -120,10 +148,14 @@ if (USE_PG) {
       if (!rows[0]) return null;
       const merged = { ...rows[0].data, ...patch, id };
       await query('UPDATE questions SET data = $1 WHERE id = $2', [merged, id]);
+      const cache = await ensureQuestionCache();
+      const idx = cache.findIndex(x => x.id === id);
+      if (idx !== -1) cache[idx] = merged; else cache.push(merged);
       return merged;
     },
     async deleteQuestion(id) {
       const { rowCount } = await query('DELETE FROM questions WHERE id = $1', [id]);
+      if (rowCount > 0 && questionCache) questionCache = questionCache.filter(x => x.id !== id);
       return rowCount > 0;
     },
 

@@ -32,6 +32,12 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  // Every check-answer / 50-50 call during gameplay is a cross-origin POST with a
+  // JSON body, which browsers always preflight with an OPTIONS request first.
+  // Without maxAge, some browsers re-preflight far more often than needed, which
+  // doubles the network round trips on the hot gameplay path. Caching the
+  // preflight result for a day removes that repeat cost for the rest of the game.
+  maxAge: 86400,
 }));
 
 // ── BODY PARSING (with size limit to prevent DoS) ────────────────────────────

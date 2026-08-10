@@ -1419,16 +1419,30 @@ export function SharedGameScreen() {
             </div>
           )}
           {/* MCQ OPTIONS */}
-          <div className="opts-grid" style={{marginBottom:16,gap:14}}>
+          <div className="opts-grid" style={{marginBottom:16,gap:14,position:'relative'}}>
+            {/* Waiting on the server to grade the answer — show a neutral "locked
+                in" state, not red/green, since we don't know right/wrong yet and
+                shouldn't imply an answer before it's confirmed. */}
+            {answeredIdx!==null && !feedback && (
+              <div style={{position:'absolute',inset:0,zIndex:5,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(8,6,22,.55)',borderRadius:16,animation:'fadeUp .2s ease'}}>
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:'2.4rem',animation:'bounce .6s ease infinite'}}>🔒</div>
+                  <div className="fw9" style={{color:'#fff',marginTop:4}}>Locked in! Checking…</div>
+                </div>
+              </div>
+            )}
             {q.opts.map((o,i)=>{
               let cls='opt-btn'; let sty={};
               const isRemoved = removedOpts.includes(i);
-              if (answeredIdx!==null) {
-                // correctIdx only exists once the server has graded the answer
-                // (see submitAnswer) — the client is never sent the answer key
-                // up front, so there's nothing to highlight until then.
-                if (feedback && i===feedback.correctIdx) cls+=' opt-correct';
+              if (feedback) {
+                // Server has responded — now it's safe to reveal right/wrong.
+                if (i===feedback.correctIdx) cls+=' opt-correct';
                 else if (i===answeredIdx) cls+=' opt-wrong';
+                else sty.opacity=.3;
+              } else if (answeredIdx!==null) {
+                // Still waiting on the server — neutral "selected" styling only,
+                // never red/wrong, so nobody can read the outcome early.
+                if (i===answeredIdx) cls+=' opt-selected';
                 else sty.opacity=.3;
               } else if (isRemoved) {
                 cls+=' opt-disabled'; sty.opacity=.25;
