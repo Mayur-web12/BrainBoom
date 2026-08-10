@@ -525,6 +525,8 @@ function publicView(session, revealAnswer = false) {
       topic: q.topic,
       diff:  q.diff,
       pts:   q.pts,
+      mediaUrl:  q.mediaUrl  || null,
+      mediaType: q.mediaType || null,
       ans:   revealAnswer ? q.ans   : undefined,
       exp:   revealAnswer ? q.exp   : undefined,
     } : null,

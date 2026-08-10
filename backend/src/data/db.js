@@ -24,7 +24,17 @@ const fs   = require('fs');
 const path = require('path');
 
 const { QUESTIONS: SEED_QUESTIONS, TOPICS: SEED_TOPICS } = require('./questions');
-const { SABHA_TOPIC, SABHA_QUESTIONS } = require('./seedExtra');
+const { SABHA_TOPIC, SABHA_QUESTIONS, MORE_QUESTIONS, LOGIC_TOPIC, LOGIC_QUESTIONS } = require('./seedExtra');
+
+// Everything that should exist even on a database that was already seeded
+// before this batch was added (e.g. a mentor's live/production DB) — new
+// Sabha questions, the new topic-spread questions, and the new Logical
+// Reasoning topic + its questions. These are added via an idempotent
+// "backfill" step below (INSERT ... ON CONFLICT DO NOTHING / a JSON-array
+// id check) that runs on every server start, not just on a brand-new DB, so
+// re-deploying this code is enough to pick them up without wiping anything.
+const BACKFILL_TOPICS    = [LOGIC_TOPIC];
+const BACKFILL_QUESTIONS = [...SABHA_QUESTIONS, ...MORE_QUESTIONS, ...LOGIC_QUESTIONS];
 
 const USE_PG = !!process.env.DATABASE_URL;
 
@@ -114,6 +124,20 @@ if (USE_PG) {
         await query('INSERT INTO topics (name, data) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING', [SABHA_TOPIC.name, SABHA_TOPIC]);
       }
     }
+
+    // Backfill: add any newer seed topics/questions (e.g. Logical Reasoning)
+    // that weren't present the first time this DB was seeded. ON CONFLICT DO
+    // NOTHING makes this safe to run on every startup — existing rows (and
+    // anything a mentor has since edited) are left untouched.
+    for (const t of BACKFILL_TOPICS) {
+      await query('INSERT INTO topics (name, data) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING', [t.name, t]);
+    }
+    let backfilled = 0;
+    for (const q of BACKFILL_QUESTIONS) {
+      const { rowCount } = await query('INSERT INTO questions (id, data) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING', [q.id, q]);
+      backfilled += rowCount;
+    }
+    if (backfilled > 0) console.log(`[db:pg] Backfilled ${backfilled} new question(s) into the existing bank.`);
   }
 
   pgImpl = {
@@ -253,6 +277,24 @@ const jsonImpl = {
     if (!topics.some(t => t.name.toLowerCase() === 'sabha')) {
       topics.push(SABHA_TOPIC);
       writeJSON(TOPICS_FILE, topics);
+    }
+
+    // Backfill: same idea as the Sabha check above, generalized — add any
+    // newer seed topics/questions (e.g. Logical Reasoning) that weren't
+    // present when this JSON file was first created, without touching
+    // anything a mentor has since added or edited.
+    let topicsChanged = false;
+    for (const t of BACKFILL_TOPICS) {
+      if (!topics.some(x => x.name.toLowerCase() === t.name.toLowerCase())) { topics.push(t); topicsChanged = true; }
+    }
+    if (topicsChanged) writeJSON(TOPICS_FILE, topics);
+
+    const existingIds = new Set(questions.map(q => q.id));
+    const toAdd = BACKFILL_QUESTIONS.filter(q => !existingIds.has(q.id));
+    if (toAdd.length > 0) {
+      questions = [...questions, ...toAdd];
+      writeJSON(QUESTIONS_FILE, questions);
+      console.log(`[db:json] Backfilled ${toAdd.length} new question(s) into the existing bank.`);
     }
 
     results = readJSON(RESULTS_FILE, []);

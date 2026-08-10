@@ -803,23 +803,21 @@ const EMPTY_FORM = { q:'', opts:['','','',''], ans:[], exp:'', topic:'Math', dif
 
 function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
   const [form,       setForm]       = useState({ ...EMPTY_FORM, topic: topics[0]||'Math' });
-  const [saved,      setSaved]      = useState([]);
-  // editDraftIdx: index in `saved` array (draft editing); editBankId: ID of published question being edited
-  const [editDraftIdx, setEditDraftIdx] = useState(null);
+  const [saving,      setSaving]      = useState(false);
   const [editBankId,   setEditBankId]   = useState(null);
   const [tab,        setTab]        = useState('create');
   const [filter,     setFilter]     = useState({ topic:'All', diff:'all' });
   const [mediaMode,  setMediaMode]  = useState('url'); // 'url' | 'upload'
   const [uploading,  setUploading]  = useState(false);
 
-  const isEditing = editDraftIdx !== null || editBankId !== null;
+  const isEditing = editBankId !== null;
 
   const toggleAns = i => setForm(p=>({...p,ans:p.ans.includes(i)?p.ans.filter(x=>x!==i):[...p.ans,i]}));
   const setOpt    = (i,v) => setForm(p=>{const o=[...p.opts];o[i]=v;return{...p,opts:o};});
   const addOpt    = () => { if(form.opts.length>=6){toast('Max 6!','error');return;} setForm(p=>({...p,opts:[...p.opts,'']})); };
   const removeOpt = i => setForm(p=>({...p,opts:p.opts.filter((_,x)=>x!==i),ans:p.ans.filter(a=>a!==i).map(a=>a>i?a-1:a)}));
 
-  const clearForm = () => { setForm({...EMPTY_FORM, topic:form.topic}); setEditDraftIdx(null); setEditBankId(null); };
+  const clearForm = () => { setForm({...EMPTY_FORM, topic:form.topic}); setEditBankId(null); };
 
   // Detect media type from URL
   const detectMediaType = (url) => {
@@ -858,7 +856,7 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
     } catch(_) { toast('Upload failed', 'error'); setUploading(false); }
   };
 
-  const saveQ = () => {
+  const saveQ = async () => {
     if (!form.q.trim())              { toast('Enter a question!','error'); return; }
     if (form.ans.length===0)         { toast('Mark at least one correct answer ✓','error'); return; }
     if (form.opts.some(o=>!o.trim())){ toast('Fill all options!','error'); return; }
@@ -869,35 +867,33 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
     if (editBankId !== null) {
       // ── UPDATE PUBLISHED QUESTION ──
       const updatedQ = { ...form, pts, opts:[...form.opts], ans:[...form.ans], id: editBankId, mediaUrl, mediaType };
-      api.updateQuestion(editBankId, updatedQ)
-        .then(() => {
-          setDbQuestions(prev => prev.map(q => q.id === editBankId ? updatedQ : q));
-          toast('Question updated ✅', 'success');
-          clearForm();
-        })
-        .catch(err => toast(err.message, 'error'));
+      setSaving(true);
+      try {
+        await api.updateQuestion(editBankId, updatedQ);
+        setDbQuestions(prev => prev.map(q => q.id === editBankId ? updatedQ : q));
+        toast('Question updated ✅', 'success');
+        clearForm();
+      } catch(err) { toast(err.message, 'error'); }
+      setSaving(false);
       return;
     }
 
-    // ── DRAFT: create new or update existing draft ──
-    const nq = { id: editDraftIdx !== null ? form.id : ('custom-'+Date.now()), ...form, pts, opts:[...form.opts], ans:[...form.ans], mediaUrl, mediaType };
-    if (editDraftIdx !== null) {
-      setSaved(p => { const n=[...p]; n[editDraftIdx]=nq; return n; });
-      setEditDraftIdx(null);
-    } else {
-      setSaved(p => [...p, nq]);
-    }
-    clearForm();
-    toast(editDraftIdx !== null ? 'Draft updated ✅' : 'Saved to draft ✅', 'success');
-  };
-
-  const publishAll = async () => {
-    if (saved.length===0){toast('No questions!','error');return;}
-    let added=0;
-    for (const q of saved) { try { await api.addQuestion(q); added++; } catch(_){} }
-    setDbQuestions(prev=>[...prev,...saved]);
-    toast(`${added} question${added>1?'s':''} published! 🎉`,'success');
-    setSaved([]);
+    // ── CREATE NEW QUESTION ──
+    // This used to only stage the question in local component state until a
+    // separate, easy-to-miss "Publish All" button was clicked — so a question
+    // could look "saved" without ever reaching the bank/Topics counts, and
+    // navigating away lost it entirely. Saving now always writes straight
+    // through to the bank, the same way editing already did, so what you see
+    // in the form is exactly what's in the bank and on the Topics page.
+    const nq = { id: 'custom-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), ...form, pts, opts:[...form.opts], ans:[...form.ans], mediaUrl, mediaType };
+    setSaving(true);
+    try {
+      await api.addQuestion(nq);
+      setDbQuestions(prev => [...prev, nq]);
+      toast('Question added to bank ✅', 'success');
+      clearForm();
+    } catch(err) { toast(err.message, 'error'); }
+    setSaving(false);
   };
 
   const deleteFromBank = async (id) => {
@@ -910,7 +906,6 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
   const editBankQuestion = (q) => {
     setForm({ q:q.q, opts:[...q.opts], ans:[...q.ans], exp:q.exp||'', topic:q.topic, diff:q.diff, mediaUrl:q.mediaUrl||'', mediaType:q.mediaType||'none' });
     setEditBankId(q.id);
-    setEditDraftIdx(null);
     setTab('create');
   };
 
@@ -939,7 +934,7 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
           <div style={{padding:'10px 14px',borderRadius:10,background:'rgba(255,193,7,.1)',border:'1px solid rgba(255,193,7,.4)',marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
             <span>✏️</span>
             <span className="fw8 fs-sm" style={{color:'#FFD93D',flex:1}}>
-              {editBankId ? 'Editing published question — changes will update the bank directly.' : `Editing draft #${editDraftIdx+1}`}
+              Editing published question — changes save straight to the bank.
             </span>
             <button className="btn btn-ghost btn-sm" onClick={clearForm}>✕ Cancel</button>
           </div>
@@ -1033,29 +1028,11 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
           <textarea className="inp" rows={2} placeholder="Why is this the correct answer?" value={form.exp} onChange={e=>setForm(p=>({...p,exp:e.target.value}))}/>
         </div>
         <div className="fl gap2 mb4" style={{marginBottom:20}}>
-          <button className="btn btn-primary fl1" onClick={saveQ}>
-            {editBankId ? '💾 Update Question' : editDraftIdx!==null ? '💾 Update Draft' : '💾 Save to Draft'}
+          <button className="btn btn-primary fl1" onClick={saveQ} disabled={saving}>
+            {saving ? '⏳ Saving…' : editBankId ? '💾 Update Question' : '💾 Save & Add to Bank'}
           </button>
           <button className="btn btn-ghost" onClick={clearForm}>🗑️ Clear</button>
         </div>
-        {!editBankId && saved.length>0&&(
-          <div className="card">
-            <div className="fl fla flb mb3">
-              <div className="sec-title" style={{margin:0}}>📋 Draft ({saved.length})</div>
-              <button className="btn btn-green btn-sm" onClick={publishAll}>🚀 Publish All</button>
-            </div>
-            {saved.map((q,i)=>(
-              <div key={q.id} className="fl fla gap2" style={{padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,.05)'}}>
-                <span className="mut fw8 fs-sm" style={{minWidth:22}}>{i+1}</span>
-                <span style={{flex:1,fontSize:'0.92rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q.q}</span>
-                {q.mediaUrl && <span title="Has media" style={{fontSize:'0.88rem'}}>🖼️</span>}
-                <span className={`badge diff-${q.diff}`}>{q.diff}</span>
-                <button className="btn btn-ghost btn-sm" onClick={()=>{setForm({...q,opts:[...q.opts],ans:[...q.ans],mediaUrl:q.mediaUrl||'',mediaType:q.mediaType||'none'});setEditDraftIdx(i);setEditBankId(null);}}>✏️</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>setSaved(p=>p.filter((_,x)=>x!==i))}>🗑️</button>
-              </div>
-            ))}
-          </div>
-        )}
       </>)}
 
       {tab==='bank'&&(<>

@@ -36,6 +36,18 @@ function getAudio(key) {
   return cache[key];
 }
 
+// Eagerly create (and start fetching) all three clips as soon as this module
+// loads, instead of waiting for the first real playCorrect()/playWrong() call.
+// That lazy creation was the main reason the very first correct/wrong sound
+// of a session felt like it "took a moment to start" — right after the answer
+// was revealed, the browser had to fetch the mp3 from scratch before it could
+// play it. Now the fetch starts the moment the game screen's JS loads, well
+// before anyone has answered a question, so by the time a sound is actually
+// needed the file is already sitting in the browser cache.
+if (typeof window !== 'undefined') {
+  Object.keys(FILES).forEach(key => getAudio(key));
+}
+
 export function isMuted() {
   try { return localStorage.getItem(MUTE_KEY) === '1'; } catch (_) { return false; }
 }
@@ -85,8 +97,13 @@ function unlockAll() {
       const a = getAudio(key);
       const p = a.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
-      a.pause();
-      a.currentTime = 0;
+      // Wait a beat before pausing, instead of pausing on the same tick.
+      // Many mobile browsers only start actually downloading an audio file
+      // once play() is called from a real user gesture (the `preload`
+      // attribute alone is ignored) — pausing immediately can cut that
+      // download off before much of the file has buffered, so the *next*
+      // real play() still stalls. Giving it ~150ms lets real bytes land.
+      setTimeout(() => { try { a.pause(); a.currentTime = 0; } catch (_) {} }, 150);
     } catch (_) {}
   });
   ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>
