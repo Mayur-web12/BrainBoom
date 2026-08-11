@@ -1220,10 +1220,10 @@ function SharedScreenMonitor({ dbQuestions, topicMeta }) {
         <h3 style={{fontSize:'1.3rem',marginBottom:8}}>Launch Shared Screen Game</h3>
         <p className="mut fs-sm" style={{marginBottom:16}}>Opens the team game on this device. Students gather around and take turns.</p>
         <button className="btn btn-primary btn-lg"
-          onClick={()=>window.open('http://localhost:3000','_blank')}>
+          onClick={()=>window.open(`${window.location.origin}/?screen=shared`,'_blank')}>
           🚀 Open Student Screen
         </button>
-        <p className="mut fs-xs mt2" style={{marginTop:8}}>Opens in a new tab → click "Shared Screen" on the home page</p>
+        <p className="mut fs-xs mt2" style={{marginTop:8}}>Opens Shared Screen mode directly in a new tab</p>
       </div>
 
       {/* Two-column info */}
@@ -1232,11 +1232,10 @@ function SharedScreenMonitor({ dbQuestions, topicMeta }) {
         <div className="card">
           <div className="sec-title">📋 How It Works</div>
           {[
-            ['1️⃣','Click "Open Student Screen"','Opens the game in a new tab'],
-            ['2️⃣','Choose "Shared Screen"','On the home page'],
-            ['3️⃣','Set teams & questions','2–4 teams, 3–10 questions each'],
-            ['4️⃣','Teams take turns','Pick topic → answer → see score'],
-            ['5️⃣','Final leaderboard','Shows after all rounds done'],
+            ['1️⃣','Click "Open Student Screen"','Opens Shared Screen mode directly in a new tab'],
+            ['2️⃣','Set teams & questions','2–4 teams, 3–10 questions each'],
+            ['3️⃣','Teams take turns','Pick topic → answer → see score'],
+            ['4️⃣','Final leaderboard','Shows after all rounds done'],
           ].map(([num,title,desc])=>(
             <div key={num} className="fl fla gap3" style={{padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,.05)'}}>
               <span style={{fontSize:'1.2rem'}}>{num}</span>
@@ -1316,10 +1315,32 @@ function SharedScreenMonitor({ dbQuestions, topicMeta }) {
 function Results({ sessions, onDeleteSession, onRefresh }) {
   const finished = sessions.filter(s => s.status === 'finished');
 
-  // Load shared screen results from localStorage
-  const [sharedResults, setSharedResults] = React.useState(() => {
+  // Load shared screen results from localStorage. This data is written by a
+  // SEPARATE tab (the Shared Screen game itself, opened via "Open Student
+  // Screen") — localStorage is shared across tabs on the same origin, but
+  // React state here is not automatically kept in sync with it. Without the
+  // two effects below, "Clear"/"Delete" could look like they didn't work: the
+  // click itself always did clear localStorage correctly, but if a shared-
+  // screen tab that was mid-game (or got replayed) wrote a fresh result
+  // around the same time, or the mentor just hadn't reloaded since a new
+  // game finished elsewhere, the list could show stale/reappearing data with
+  // no obvious cause.
+  const loadSharedResults = () => {
     try { return JSON.parse(localStorage.getItem('quizquest_shared_results') || '[]'); } catch(_) { return []; }
-  });
+  };
+  const [sharedResults, setSharedResults] = React.useState(loadSharedResults);
+
+  // Live cross-tab sync: the 'storage' event fires in THIS tab whenever
+  // localStorage is changed by ANOTHER tab (e.g. a Shared Screen game
+  // finishing on the student device) — so a freshly-finished game appears
+  // here without needing a manual refresh, and if that other tab is the
+  // reason "the same result kept showing", it now shows up as a real new
+  // entry rather than looking like the Clear button silently failed.
+  React.useEffect(() => {
+    const onStorage = (e) => { if (!e.key || e.key === 'quizquest_shared_results') setSharedResults(loadSharedResults()); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const clearShared = () => {
     localStorage.removeItem('quizquest_shared_results');
@@ -1334,7 +1355,7 @@ function Results({ sessions, onDeleteSession, onRefresh }) {
         <h2 style={{fontSize:'1.5rem'}}>📈 Results</h2>
         <div className="fl gap2">
           {onRefresh && (
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} title="Refresh results">🔄 Refresh</button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>{ onRefresh(); setSharedResults(loadSharedResults()); }} title="Refresh results">🔄 Refresh</button>
           )}
           {sharedResults.length > 0 && (
             <button className="btn btn-danger btn-sm" onClick={clearShared}>🗑️ Clear Shared Results</button>

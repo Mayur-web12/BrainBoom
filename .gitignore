@@ -1,0 +1,20 @@
+# Secrets — never commit or ship these. Copy the matching .env.example instead.
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Dependencies
+node_modules/
+
+# Build output
+frontend/build/
+frontend/dist/
+
+# Local data fallback (only used when DATABASE_URL is unset)
+backend/db/
+
+# OS / editor
+.DS_Store
+*.log

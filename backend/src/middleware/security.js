@@ -140,8 +140,12 @@ function validateSession(req, res, next) {
 const mentorTokens = new Set();
 
 function createMentorToken() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const token = Array.from({length:48}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+  // Cryptographically-secure token: Math.random() is NOT safe for anything
+  // security-sensitive (it's a fast, non-cryptographic PRNG — its internal
+  // state can in principle be inferred from enough observed outputs). A
+  // session token needs to be unguessable, so it's generated from the OS's
+  // secure random source instead.
+  const token = crypto.randomBytes(36).toString('base64url'); // 48 URL-safe chars
   mentorTokens.add(token);
   setTimeout(() => mentorTokens.delete(token), 8*60*60*1000); // 8 hour expiry
   return token;

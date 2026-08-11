@@ -51,6 +51,13 @@ function Router() {
       if (path === MENTOR_SECRET_PATH.toLowerCase() && state.screen === 'landing') {
         go('mentor-gate');
       }
+      // Lets "Open Student Screen" in the mentor panel deep-link straight into
+      // Shared Screen mode instead of landing on the home page and requiring
+      // an extra manual click on the "Shared Screen" card.
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('screen') === 'shared' && path === '/' && state.screen === 'landing') {
+        go('shared-game');
+      }
     };
     handleURL();
     window.addEventListener('popstate', handleURL);

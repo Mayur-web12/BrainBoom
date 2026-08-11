@@ -1346,8 +1346,8 @@ export function SharedGameScreen() {
     const questionText = q.q || q.text || '(Question text missing)';
     return (
       <div className="screen" style={{background:'var(--bg)'}}>
-        <div style={{padding:'12px 18px',background:'rgba(8,6,22,.92)',backdropFilter:'blur(14px)',borderBottom:'1px solid rgba(255,255,255,.06)',display:'flex',alignItems:'center',gap:12}}>
-          <div className="fl fla gap2 fl1">
+        <div className="ingame-header" style={{padding:'12px 18px',background:'rgba(8,6,22,.92)',backdropFilter:'blur(14px)',borderBottom:'1px solid rgba(255,255,255,.06)'}}>
+          <div className="ingame-badges">
             <div style={{padding:'4px 10px',borderRadius:10,background:`${ct.color}22`,border:`1.5px solid ${ct.color}55`,display:'flex',alignItems:'center',gap:6}}>
               <span>{ct.emoji}</span><span className="fw8 fs-sm" style={{color:ct.color}}>{ct.name}</span>
             </div>
@@ -1355,17 +1355,19 @@ export function SharedGameScreen() {
               <span>{meta.emoji}</span><span className="fw8 fs-sm" style={{color:meta.color}}>{q.topic}</span>
             </div>
           </div>
-          <TimerRing value={timer} max={timerSecs} size={68} paused={!timerActive && answeredIdx===null}/>
-          {answeredIdx===null && (
-            <button
-              className="btn btn-ghost"
-              style={{padding:'8px 14px',fontSize:'0.85rem',whiteSpace:'nowrap'}}
-              onClick={()=>setTimerActive(a=>!a)}
-              title={timerActive ? 'Pause the timer' : 'Resume the timer'}
-            >
-              {timerActive ? '⏸ Pause' : '▶ Resume'}
-            </button>
-          )}
+          <div className="ingame-controls">
+            <TimerRing value={timer} max={timerSecs} size={68} paused={!timerActive && answeredIdx===null}/>
+            {answeredIdx===null && (
+              <button
+                className="btn btn-ghost"
+                style={{whiteSpace:'nowrap'}}
+                onClick={()=>setTimerActive(a=>!a)}
+                title={timerActive ? 'Pause the timer' : 'Resume the timer'}
+              >
+                {timerActive ? '⏸ Pause' : '▶ Resume'}
+              </button>
+            )}
+          </div>
         </div>
         <div style={{flex:1,padding:'16px 20px',maxWidth:760,margin:'0 auto',width:'100%'}}>
           {/* QUESTION CARD — question text is the main focus */}

@@ -95,15 +95,19 @@ function unlockAll() {
   Object.keys(FILES).forEach(key => {
     try {
       const a = getAudio(key);
+      const wasMuted = a.muted;
+      // Priming must be SILENT — its only job is to satisfy the browser's
+      // "audio needs a real user gesture" requirement and warm the network
+      // buffer. Muting doesn't stop the file from downloading, it just stops
+      // it from being heard, so this still does its job without producing an
+      // audible "beep" the instant someone taps anywhere on the page (e.g.
+      // the landing page mode cards, before any game sound should ever play).
+      a.muted = true;
       const p = a.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
-      // Wait a beat before pausing, instead of pausing on the same tick.
-      // Many mobile browsers only start actually downloading an audio file
-      // once play() is called from a real user gesture (the `preload`
-      // attribute alone is ignored) — pausing immediately can cut that
-      // download off before much of the file has buffered, so the *next*
-      // real play() still stalls. Giving it ~150ms lets real bytes land.
-      setTimeout(() => { try { a.pause(); a.currentTime = 0; } catch (_) {} }, 150);
+      setTimeout(() => {
+        try { a.pause(); a.currentTime = 0; a.muted = wasMuted; } catch (_) {}
+      }, 150);
     } catch (_) {}
   });
   ['pointerdown', 'keydown', 'touchstart'].forEach(evt =>

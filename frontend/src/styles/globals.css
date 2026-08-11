@@ -304,6 +304,30 @@ tr:hover td { background:rgba(255,255,255,.025); }
 @media (max-width: 1024px) { .practice-mascot { width:200px; } }
 @media (max-width: 768px)  { .practice-mascot { display:none; } }
 
+/* ── SHARED SCREEN / TEAM MODE IN-QUESTION HEADER ────────────────────────
+   Team badge + topic badge + timer ring + pause button, all in one row on
+   desktop. On narrow phones (e.g. iPhone SE, 375px) that row is wider than
+   the screen, which pushed the timer/pause controls half off-screen instead
+   of wrapping — this let the row wrap onto a second line, shrunk the pause
+   button, and let the badges truncate with an ellipsis instead of forcing
+   everything else out of view. */
+.ingame-header {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 8px;
+}
+.ingame-header .ingame-badges {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 140px; min-width: 0;
+}
+.ingame-header .ingame-badges > div { min-width: 0; }
+.ingame-header .ingame-badges span:last-child {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34vw;
+}
+.ingame-header .ingame-controls {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto;
+}
+@media (max-width: 480px) {
+  .ingame-header .ingame-controls .btn { padding: 7px 10px; font-size: 0.78rem; }
+}
+
 /* ── RESPONSIVE TWEAKS ─────────────────────────────────────────────────
    Ease grid/card density and spacing down a notch on small screens so
    text has room to breathe instead of shrinking. */
