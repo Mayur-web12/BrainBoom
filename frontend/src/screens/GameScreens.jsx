@@ -990,6 +990,14 @@ export function SharedGameScreen() {
     }
   }, [phase]); // eslint-disable-line
 
+  // Play the winner fanfare when the game ends. FinalLeaderboard (used by the
+  // real Team/Solo multiplayer mode) already does this in its own effect —
+  // Shared Screen mode has its own separate "finished" screen below and never
+  // had an equivalent trigger, so the results screen was silent.
+  React.useEffect(() => {
+    if (phase === 'finished') playWinner();
+  }, [phase]); // eslint-disable-line
+
   // ── HELPERS ────────────────────────────────────────────────────────────
   const handleTeamCount = n => {
     setTeamCount(n);
@@ -1174,6 +1182,21 @@ export function SharedGameScreen() {
         <div style={{padding:'10px 16px',borderRadius:12,background:'rgba(79,140,255,.08)',border:'1px solid rgba(79,140,255,.2)',marginBottom:18,fontSize:'0.92rem',color:'var(--blue)'}}>
           {loadingQ ? '⏳ Loading questions…' : `✅ ${dbQ.length} questions ready. All teams play on one screen. No phones needed!`}
         </div>
+        {!loadingQ && (() => {
+          // A topic needs ≥3 questions to be selectable during play (so a team
+          // can't pick a topic and then run out of questions mid-game) — flag
+          // any topic that's short, right here, before the mentor starts and
+          // wonders why it's missing from the picker later.
+          const counts = {};
+          dbQ.forEach(q => { counts[q.topic] = (counts[q.topic]||0) + 1; });
+          const short = Object.entries(counts).filter(([,n]) => n < 3);
+          if (short.length === 0) return null;
+          return (
+            <div style={{padding:'10px 16px',borderRadius:12,background:'rgba(255,217,61,.08)',border:'1px solid rgba(255,217,61,.25)',marginBottom:18,fontSize:'0.85rem',color:'#FFD93D'}}>
+              ⚠️ These topics won't be selectable during play (need 3+ questions each): {short.map(([t,n])=>`${t} (${n})`).join(', ')}. Add more questions in Quiz Builder to enable them.
+            </div>
+          );
+        })()}
         <div className="card mb3" style={{marginBottom:14}}>
           <div className="sec-title">⚙️ Settings</div>
           <div className="fg"><label className="lbl">Teams</label>
