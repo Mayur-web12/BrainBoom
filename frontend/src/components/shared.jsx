@@ -99,14 +99,14 @@ export function Confetti({ active }) {
 }
 
 /* ── TIMER RING ─────────────────────────────────────────────────────── */
-export function TimerRing({ value, max, size = 64 }) {
+export function TimerRing({ value, max, size = 64, paused = false }) {
   const r   = (size - 10) / 2;
   const c   = 2 * Math.PI * r;
   const pct = Math.max(0, value / Math.max(1, max));
-  const col = pct > .5 ? '#4F8CFF' : pct > .25 ? '#FFD93D' : '#FF5252';
-  const warn= pct <= .25;
+  const col = paused ? '#9AA3B2' : pct > .5 ? '#4F8CFF' : pct > .25 ? '#FFD93D' : '#FF5252';
+  const warn= !paused && pct <= .25;
   return (
-    <div className="timer-wrap" style={{ width:size, height:size }}>
+    <div className="timer-wrap" style={{ width:size, height:size, opacity: paused ? .7 : 1 }}>
       <svg className="timer-svg" viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="5"/>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round"
@@ -114,7 +114,7 @@ export function TimerRing({ value, max, size = 64 }) {
           style={{ transition:'stroke-dashoffset .2s linear, stroke .3s' }}/>
       </svg>
       <div className="timer-label" style={{ color:col, fontSize: size > 60 ? '1.2rem':'0.95rem', animation: warn ? 'timerWarn .5s ease infinite':'' }}>
-        {value}
+        {paused ? '⏸' : value}
       </div>
     </div>
   );

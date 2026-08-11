@@ -1355,7 +1355,17 @@ export function SharedGameScreen() {
               <span>{meta.emoji}</span><span className="fw8 fs-sm" style={{color:meta.color}}>{q.topic}</span>
             </div>
           </div>
-          <TimerRing value={timer} max={timerSecs} size={68}/>
+          <TimerRing value={timer} max={timerSecs} size={68} paused={!timerActive && answeredIdx===null}/>
+          {answeredIdx===null && (
+            <button
+              className="btn btn-ghost"
+              style={{padding:'8px 14px',fontSize:'0.85rem',whiteSpace:'nowrap'}}
+              onClick={()=>setTimerActive(a=>!a)}
+              title={timerActive ? 'Pause the timer' : 'Resume the timer'}
+            >
+              {timerActive ? '⏸ Pause' : '▶ Resume'}
+            </button>
+          )}
         </div>
         <div style={{flex:1,padding:'16px 20px',maxWidth:760,margin:'0 auto',width:'100%'}}>
           {/* QUESTION CARD — question text is the main focus */}
