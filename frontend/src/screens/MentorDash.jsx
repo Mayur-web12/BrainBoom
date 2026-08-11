@@ -763,7 +763,7 @@ function LiveControl({ emit, toast, topicMeta, onNavigate, onRefresh }) {
         {gs.status !== 'finished' && (
           <div>
             <label className="lbl">TIMER: <strong>{newTimer}s</strong></label>
-            <div className="fl fla gap2 mt1" style={{marginTop:8}}>
+            <div className="fl fla gap2 mt1" style={{marginTop:8,flexWrap:balance}}>
               {[10,15,20,30,45,60].map(v=>(<button key={v} onClick={()=>setNewTimer(v)} className="btn btn-sm"
                 style={{flex:1,background:newTimer===v?'var(--blue2)':'var(--bg3)',border:`1px solid ${newTimer===v?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:newTimer===v?'#fff':'var(--t2)'}}>{v}s</button>))}
             </div>
