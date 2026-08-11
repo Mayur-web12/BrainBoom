@@ -360,10 +360,10 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
         </div>
         <div className="fg" style={{background:'rgba(79,140,255,.08)',border:'1px solid rgba(79,140,255,.25)',borderRadius:12,padding:'12px 16px',marginBottom:14}}>
           <label className="lbl" style={{color:'var(--blue)'}}>Questions Per Team</label>
-          <div className="fl gap2" style={{marginTop:8}}>
+          <div className="grid3 gap2" style={{marginTop:8}}>
             {[5,8,10,12,15].map(n=>(
               <button key={n} onClick={()=>setForm(p=>({...p,questionsPerTeam:n}))} className="btn btn-sm"
-                style={{flex:1,background:form.questionsPerTeam===n?'var(--blue)':'var(--bg3)',border:`1.5px solid ${form.questionsPerTeam===n?'var(--blue)':'rgba(255,255,255,.1)'}`,color:form.questionsPerTeam===n?'#fff':'var(--t2)'}}>
+                style={{background:form.questionsPerTeam===n?'var(--blue)':'var(--bg3)',border:`1.5px solid ${form.questionsPerTeam===n?'var(--blue)':'rgba(255,255,255,.1)'}`,color:form.questionsPerTeam===n?'#fff':'var(--t2)'}}>
                 {n}
               </button>
             ))}
@@ -385,9 +385,9 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
           <span className={`fw8 fs-sm ${available>0?'grn':'rdc'}`}>{available>0?'✅':'❌'} {available} questions match</span>
         </div>
         <div className="fg"><label className="lbl">Teams</label>
-          <div className="fl gap2 mb2" style={{marginBottom:10}}>
+          <div className="grid3 gap2 mb2" style={{marginBottom:10}}>
             {[2,3,4,5,6].map(n=>(<button key={n} onClick={()=>setTeamCount(n)} className="btn btn-sm"
-              style={{flex:1,background:form.teamCount===n?'var(--blue2)':'var(--bg3)',border:`1.5px solid ${form.teamCount===n?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:form.teamCount===n?'#fff':'var(--t2)'}}>{n}</button>))}
+              style={{background:form.teamCount===n?'var(--blue2)':'var(--bg3)',border:`1.5px solid ${form.teamCount===n?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:form.teamCount===n?'#fff':'var(--t2)'}}>{n}</button>))}
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:9}}>
             {form.teams.map((t,i)=>(
@@ -432,10 +432,10 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
         </div>
         <div className="fg" style={{background:'rgba(76,175,80,.08)',border:'1px solid rgba(76,175,80,.25)',borderRadius:12,padding:'12px 16px',marginBottom:14}}>
           <label className="lbl" style={{color:'var(--green)'}}>Questions Per Round</label>
-          <div className="fl gap2" style={{marginTop:8}}>
+          <div className="grid3 gap2" style={{marginTop:8}}>
             {[5,8,10,12,15].map(n=>(
               <button key={n} onClick={()=>setSoloForm(p=>({...p,questionsPerRound:n}))} className="btn btn-sm"
-                style={{flex:1,background:soloForm.questionsPerRound===n?'var(--green)':'var(--bg3)',border:`1.5px solid ${soloForm.questionsPerRound===n?'var(--green)':'rgba(255,255,255,.1)'}`,color:soloForm.questionsPerRound===n?'#fff':'var(--t2)'}}>
+                style={{background:soloForm.questionsPerRound===n?'var(--green)':'var(--bg3)',border:`1.5px solid ${soloForm.questionsPerRound===n?'var(--green)':'rgba(255,255,255,.1)'}`,color:soloForm.questionsPerRound===n?'#fff':'var(--t2)'}}>
                 {n}
               </button>
             ))}
@@ -443,10 +443,10 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
         </div>
         <div className="fg" style={{background:'rgba(123,97,255,.08)',border:'1px solid rgba(123,97,255,.25)',borderRadius:12,padding:'12px 16px',marginBottom:14}}>
           <label className="lbl" style={{color:'var(--blue2)'}}>Max Players Allowed</label>
-          <div className="fl gap2 flw" style={{marginTop:8}}>
+          <div className="grid3 gap2" style={{marginTop:8}}>
             {[20,40,60,80,100].map(n=>(
               <button key={n} onClick={()=>setSoloForm(p=>({...p,maxPlayers:n}))} className="btn btn-sm"
-                style={{flex:1,minWidth:48,background:soloForm.maxPlayers===n?'var(--blue2)':'var(--bg3)',border:`1.5px solid ${soloForm.maxPlayers===n?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:soloForm.maxPlayers===n?'#fff':'var(--t2)'}}>
+                style={{background:soloForm.maxPlayers===n?'var(--blue2)':'var(--bg3)',border:`1.5px solid ${soloForm.maxPlayers===n?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:soloForm.maxPlayers===n?'#fff':'var(--t2)'}}>
                 {n}
               </button>
             ))}
@@ -763,9 +763,9 @@ function LiveControl({ emit, toast, topicMeta, onNavigate, onRefresh }) {
         {gs.status !== 'finished' && (
           <div>
             <label className="lbl">TIMER: <strong>{newTimer}s</strong></label>
-            <div className="fl fla gap2 mt1" style={{marginTop:8,flexWrap:balance}}>
+            <div className="grid3 gap2 mt1" style={{marginTop:8}}>
               {[10,15,20,30,45,60].map(v=>(<button key={v} onClick={()=>setNewTimer(v)} className="btn btn-sm"
-                style={{flex:1,background:newTimer===v?'var(--blue2)':'var(--bg3)',border:`1px solid ${newTimer===v?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:newTimer===v?'#fff':'var(--t2)'}}>{v}s</button>))}
+                style={{background:newTimer===v?'var(--blue2)':'var(--bg3)',border:`1px solid ${newTimer===v?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:newTimer===v?'#fff':'var(--t2)'}}>{v}s</button>))}
             </div>
             <button className="btn btn-ghost btn-sm mt2" style={{marginTop:8}} onClick={()=>act('set-timer',{seconds:newTimer})} disabled={busy}>Apply</button>
           </div>

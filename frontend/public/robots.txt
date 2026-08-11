@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /mentor
+
+Sitemap: /sitemap.xml
