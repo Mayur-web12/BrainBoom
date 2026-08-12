@@ -249,7 +249,17 @@ tr:hover td { background:rgba(255,255,255,.025); }
 
 /* ── PODIUM ─────────────────────────────────────────────────────────── */
 .podium-wrap { display:flex; align-items:flex-end; justify-content:center; gap:10px; }
-.podium-bar  { border-radius:14px 14px 0 0; padding:12px 16px; min-width:90px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
+/* justify-content was flex-end, which pushes the medal/name/score content to
+   the BOTTOM of each bar. Since the bars are different heights (100/75/56px)
+   on purpose — taller for 1st place — that left a growing gap of empty
+   colored space at the TOP of the taller bars, between the avatar sitting
+   above the bar and the content inside it. That gap made 1st and 2nd place
+   look "detached"/pushed outward from their own avatar, worse the taller
+   (i.e. the more prominent) the bar was. Anchoring content to the top of the
+   bar instead means it always sits directly under the avatar with no gap,
+   and the bar's extra height reads as a taller pedestal below it — like an
+   actual awards podium — instead of empty space above. */
+.podium-bar  { border-radius:14px 14px 0 0; padding:12px 16px; min-width:90px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
 .pod-1 { background:linear-gradient(180deg,#FFD700,#FFA500); height:100px; }
 .pod-2 { background:linear-gradient(180deg,#C0C0C0,#888);   height:75px;  }
 .pod-3 { background:linear-gradient(180deg,#CD7F32,#8B4513); height:56px;  }

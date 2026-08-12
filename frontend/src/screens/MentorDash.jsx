@@ -534,29 +534,27 @@ function LiveControl({ emit, toast, topicMeta, onNavigate, onRefresh }) {
         <span className="mut fs-xs">· Round {gs.roundNumber||0} · {gs.usedCount||0}/{gs.totalQuestions} used</span>
         <span className="mut fs-xs">· {available.length} topics left</span>
       </div>
-      {!isIndividual && (
-        <div style={{
-          background: gs.doublePoints ? 'linear-gradient(135deg,rgba(255,217,61,.18),rgba(255,140,66,.18))' : 'var(--bg3)',
-          border: gs.doublePoints ? '1.5px solid rgba(255,217,61,.5)' : '1px solid rgba(255,255,255,.06)',
-          borderRadius:12, padding:'10px 16px', marginBottom:14, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap',
-        }}>
-          <span className="fw8 fs-sm">⚡ Double Points</span>
-          <span className="mut fs-xs">
-            {gs.doublePoints ? 'Armed — next question picked will be worth 2x' :
-             gs.doublePointsActive ? 'Active on the current question' :
-             'Off — arm it before a team picks their next topic'}
-          </span>
-          <button
-            className={`btn btn-sm ${gs.doublePoints ? '' : 'btn-ghost'}`}
-            style={gs.doublePoints ? {background:'linear-gradient(135deg,var(--yellow),var(--orange))',color:'#1a1a1a'} : {}}
-            disabled={busy || gs.status !== 'topic_pick'}
-            onClick={()=>act('toggle-double-points',{on:!gs.doublePoints})}
-            title={gs.status !== 'topic_pick' ? 'Only available while a team is picking a topic' : ''}
-          >
-            {gs.doublePoints ? '✅ Armed — tap to cancel' : '⚡ Arm for next question'}
-          </button>
-        </div>
-      )}
+      <div style={{
+        background: gs.doublePoints ? 'linear-gradient(135deg,rgba(255,217,61,.18),rgba(255,140,66,.18))' : 'var(--bg3)',
+        border: gs.doublePoints ? '1.5px solid rgba(255,217,61,.5)' : '1px solid rgba(255,255,255,.06)',
+        borderRadius:12, padding:'10px 16px', marginBottom:14, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap',
+      }}>
+        <span className="fw8 fs-sm">⚡ Double Points</span>
+        <span className="mut fs-xs">
+          {gs.doublePoints ? 'Armed — next question picked will be worth 2x' :
+           gs.doublePointsActive ? 'Active on the current question' :
+           'Off — arm it before ' + (isIndividual ? 'the next question' : 'a team picks their next topic')}
+        </span>
+        <button
+          className={`btn btn-sm ${gs.doublePoints ? '' : 'btn-ghost'}`}
+          style={gs.doublePoints ? {background:'linear-gradient(135deg,var(--yellow),var(--orange))',color:'#1a1a1a'} : {}}
+          disabled={busy || gs.status !== 'topic_pick'}
+          onClick={()=>act('toggle-double-points',{on:!gs.doublePoints})}
+          title={gs.status !== 'topic_pick' ? 'Only available between questions' : ''}
+        >
+          {gs.doublePoints ? '✅ Armed — tap to cancel' : '⚡ Arm for next question'}
+        </button>
+      </div>
       <div className="grid2" style={{gap:14,marginBottom:14}}>
         <div className="card">
           {gs.mode === 'individual' ? (
@@ -1048,14 +1046,14 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
         </div>
         {filtered.length===0?<div className="empty card"><p>No questions match</p></div>:filtered.map(q=>(
           <div key={q.id} className="card card-sm" style={{padding:'12px 14px',marginBottom:8}}>
-            <div className="fl fla flb mb2">
-              <div className="fl fla gap2">
+            <div className="fl fla flb mb2" style={{flexWrap:'wrap',rowGap:8}}>
+              <div className="fl fla gap2" style={{flexWrap:'wrap',rowGap:6,flex:'1 1 200px',minWidth:0}}>
                 <span className="badge b-blue fs-xs">{getTopicEmoji(q.topic,topicMeta)} {q.topic}</span>
                 <span className={`badge diff-${q.diff}`}>{q.diff}</span>
                 <span className="badge b-yellow fs-xs">+{q.pts}pts</span>
                 {q.mediaUrl && <span title="Has media" style={{fontSize:'0.85rem',padding:'2px 6px',borderRadius:6,background:'rgba(123,97,255,.2)',border:'1px solid rgba(123,97,255,.4)',color:'var(--blue2)'}}>🖼️ media</span>}
               </div>
-              <div className="fl gap2">
+              <div className="fl gap2" style={{flexShrink:0,marginLeft:'auto'}}>
                 <button className="btn btn-ghost btn-sm" onClick={()=>editBankQuestion(q)}>✏️</button>
                 <button className="btn btn-danger btn-sm" onClick={()=>deleteFromBank(q.id)}>🗑️</button>
               </div>

@@ -1575,6 +1575,7 @@ export function SharedGameScreen() {
 
 
 
+
   if (phase === 'finished') {
     const sorted=[...teams].sort((a,b)=>b.score-a.score);
     const top3=sorted.slice(0,3);
