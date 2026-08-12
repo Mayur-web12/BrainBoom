@@ -129,7 +129,7 @@ textarea.inp { resize:vertical; }
   .nav-title { max-width:38vw; font-size:0.95rem !important; }
   .nav-conn-status { display:none; } /* least-critical info — first to go when space is tight */
 }
-.logo { font-family:'Fredoka',cursive; font-size:1.65rem; background:linear-gradient(135deg,var(--blue),var(--blue2),var(--yellow)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:700; }
+.logo { font-family:'Fredoka',cursive; font-size:1.65rem; background:linear-gradient(135deg,var(--blue),var(--blue2),var(--yellow)); background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:700; }
 
 /* ── BACKGROUND ORBS ─────────────────────────────────────────────────── */
 .bg-orbs { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
@@ -186,7 +186,7 @@ textarea.inp { resize:vertical; }
 
 /* ── STAT CARD ──────────────────────────────────────────────────────── */
 .stat-c { background:var(--c1); border-radius:16px; padding:18px; text-align:center; border:1px solid rgba(255,255,255,.06); }
-.stat-num { font-size:1.75rem; font-weight:900; background:linear-gradient(135deg,var(--yellow),var(--orange)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.stat-num { font-size:1.75rem; font-weight:900; background:linear-gradient(135deg,var(--yellow),var(--orange)); background-clip:text; -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 
 /* ── TABLE ──────────────────────────────────────────────────────────── */
 table { width:100%; border-collapse:collapse; }
