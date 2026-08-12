@@ -260,9 +260,9 @@ tr:hover td { background:rgba(255,255,255,.025); }
    and the bar's extra height reads as a taller pedestal below it — like an
    actual awards podium — instead of empty space above. */
 .podium-bar  { border-radius:14px 14px 0 0; padding:12px 16px; min-width:90px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-.pod-1 { background:linear-gradient(180deg,#FFD700,#FFA500); height:100px; }
-.pod-2 { background:linear-gradient(180deg,#C0C0C0,#888);   height:75px;  }
-.pod-3 { background:linear-gradient(180deg,#CD7F32,#8B4513); height:56px;  }
+.pod-1 { background:linear-gradient(180deg,#FFD700,#FFA500); height:150px; }
+.pod-2 { background:linear-gradient(180deg,#C0C0C0,#888);   height:130px;  }
+.pod-3 { background:linear-gradient(180deg,#CD7F32,#8B4513); height:120px;  }
 
 /* ── LOBBY PLAYER GRID ───────────────────────────────────────────────── */
 .player-chip { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06); border-radius:20px; padding:6px 13px; font-size:.92rem; font-weight:700; margin:3px; border:1px solid rgba(255,255,255,.1); animation:popIn .25s ease; line-height:1.3; }

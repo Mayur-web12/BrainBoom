@@ -875,6 +875,11 @@ export function SharedGameScreen() {
   const [chosenDiff,   setChosenDiff]   = useState(null);
   const [timer,        setTimer]        = useState(30);
   const [timerActive,  setTimerActive]  = useState(false);
+  // Double Points — same concept as Team mode's mentor-armed toggle in Live
+  // Control, but Shared Screen mode has no separate mentor device/socket
+  // session, so it's armed right here on the difficulty-pick screen instead.
+  const [sharedDoublePoints,       setSharedDoublePoints]       = useState(false); // armed for the next question
+  const [sharedDoublePointsActive, setSharedDoublePointsActive] = useState(false); // snapshot for the CURRENT question
   const [rounds,       setRounds]       = useState([]);
   const [teamRounds,   setTeamRounds]   = useState({});
   const [feedback,     setFeedback]     = useState(null);
@@ -936,7 +941,7 @@ export function SharedGameScreen() {
       setTimerActive(false);
       setAnsweredIdx(-1);
       const diff    = question?.diff || 'easy';
-      const penalty = DIFF_PTS[diff].wrong;
+      const penalty = DIFF_PTS[diff].wrong * (sharedDoublePointsActive ? 2 : 1);
       const ct      = teams[curTeamIdx];
       const q       = question;
       setTeams(p => p.map(t => t.id === ct.id ? { ...t, score: Math.max(0, t.score - penalty) } : t));
@@ -1061,6 +1066,8 @@ export function SharedGameScreen() {
     setQuestion(q);
     setChosenDiff(q.diff);
     setUsedIds(p => [...p, q.id]);
+    setSharedDoublePointsActive(sharedDoublePoints); // snapshot the one-shot arm for this question
+    setSharedDoublePoints(false);                    // consume it
     setAnsweredIdx(null); setFeedback(null); setRemovedOpts([]);
     setTimer(timerSecs); setTimerActive(true);
     setPhase('question');
@@ -1124,10 +1131,12 @@ export function SharedGameScreen() {
       .then(({ correct, correctIdx, explanation }) => {
         const speedBonus    = correct ? Math.floor((timer/timerSecs)*DIFF_PTS[diff].correct*0.5) : 0;
         const comebackBonus = correct && sharedComebackEligibleTeamIds.includes(ct.id) ? SHARED_COMEBACK_BONUS_POINTS : 0;
-        const totalChange   = (correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong) + comebackBonus;
+        let totalChange      = correct ? DIFF_PTS[diff].correct + speedBonus : -DIFF_PTS[diff].wrong;
+        if (sharedDoublePointsActive) totalChange *= 2; // matches Team mode: doubles the base change, comeback bonus stays flat
+        totalChange += comebackBonus;
         const correctAns    = correctIdx != null ? q.opts[correctIdx] : '';
         setTeams(p => p.map(t => t.id===ct.id ? {...t,score:Math.max(0,t.score+totalChange)} : t));
-        setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,comebackBonus:comebackBonus>0,question:q.q,correctAns}]);
+        setRounds(p => [...p,{teamId:ct.id,teamName:ct.name,topic:chosenTopic,diff,correct,totalChange,comebackBonus:comebackBonus>0,doublePoints:sharedDoublePointsActive,question:q.q,correctAns}]);
         setTeamRounds(p => ({...p,[ct.id]:(p[ct.id]||0)+1}));
         const ei = Math.floor(Math.random()*FEEDBACK_EMOJIS_CORRECT.length);
         setFeedback({correct,correctIdx,change:totalChange,
@@ -1135,6 +1144,7 @@ export function SharedGameScreen() {
           emoji2:correct?FEEDBACK_EMOJIS_CORRECT[(ei+1)%10]:FEEDBACK_EMOJIS_WRONG[(ei+1)%10],
           timedOut:false,teamColor:ct.color,teamEmoji:ct.emoji,teamName:ct.name,
           correctAns,explanation:explanation||'',speedBonus:correct?speedBonus:0,
+          doublePoints:sharedDoublePointsActive,
           comebackBonus:comebackBonus>0,comebackBonusPoints:SHARED_COMEBACK_BONUS_POINTS});
         setPhase('feedback');
       })
@@ -1319,6 +1329,28 @@ export function SharedGameScreen() {
             <p className="mut fs-sm">{ct.emoji} {ct.name} picked this topic. You choose the difficulty.</p>
           </div>
 
+          {/* Double Points — mirrors Team mode's Live Control toggle. Shared
+              Screen mode has no separate mentor device, so it's armed right
+              here before picking the difficulty for this question. */}
+          <div style={{
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap',
+            padding:'10px 16px',borderRadius:12,marginBottom:16,
+            background: sharedDoublePoints ? 'linear-gradient(135deg,rgba(255,217,61,.18),rgba(255,140,66,.18))' : 'var(--bg3)',
+            border: sharedDoublePoints ? '1.5px solid rgba(255,217,61,.5)' : '1px solid rgba(255,255,255,.06)',
+          }}>
+            <div>
+              <div className="fw8 fs-sm">⚡ Double Points</div>
+              <div className="mut fs-xs">{sharedDoublePoints ? 'Armed — this question will be worth 2x' : 'Off — arm it before picking a difficulty'}</div>
+            </div>
+            <button
+              className={`btn btn-sm ${sharedDoublePoints ? '' : 'btn-ghost'}`}
+              style={sharedDoublePoints ? {background:'linear-gradient(135deg,var(--yellow),var(--orange))',color:'#1a1a1a'} : {}}
+              onClick={()=>setSharedDoublePoints(p=>!p)}
+            >
+              {sharedDoublePoints ? '✅ Armed — tap to cancel' : '⚡ Arm this question'}
+            </button>
+          </div>
+
           {/* Difficulty cards */}
           <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:20}}>
             {DIFF_INFO.map(d => {
@@ -1396,10 +1428,11 @@ export function SharedGameScreen() {
           {/* QUESTION CARD — question text is the main focus */}
           <div className="card mb3" style={{marginBottom:18,borderColor:`${meta.color}66`,borderWidth:2,padding:'24px 22px'}}>
             <div className="fl fla flb mb3" style={{marginBottom:14}}>
-              <div className="fl fla gap2">
+              <div className="fl fla gap2" style={{flexWrap:'wrap',rowGap:6}}>
                 <span className={`badge diff-${q.diff}`}>{q.diff}</span>
-                <span className="badge b-green fs-xs">✅ +{DIFF_PTS[q.diff]?.correct} pts</span>
-                <span className="badge b-red fs-xs">❌ −{DIFF_PTS[q.diff]?.wrong} pts</span>
+                <span className="badge b-green fs-xs">✅ +{DIFF_PTS[q.diff]?.correct * (sharedDoublePointsActive?2:1)} pts</span>
+                <span className="badge b-red fs-xs">❌ −{DIFF_PTS[q.diff]?.wrong * (sharedDoublePointsActive?2:1)} pts</span>
+                {sharedDoublePointsActive && <span className="badge fs-xs" style={{background:'linear-gradient(135deg,var(--yellow),var(--orange))',color:'#1a1a1a',fontWeight:900}}>⚡ 2x</span>}
               </div>
               <span style={{fontSize:'0.88rem',fontWeight:700,color:meta.color}}>{meta.emoji} {q.topic}</span>
             </div>

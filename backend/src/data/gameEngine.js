@@ -618,8 +618,13 @@ function handleIndividualTimerExpiry(session) {
 
   // Any player who hasn't answered gets the wrong penalty
   const answers = session.currentRoundAnswers || {};
-  const DIFF_PTS_MAP = { easy:-50, medium:-75, hard:-100 };
-  const penalty = Math.abs(DIFF_PTS_MAP[q.diff] || 50);
+  // Use the same POINTS table Team mode uses (was a separate hardcoded map
+  // before, which quietly drifted from the real per-difficulty values) and
+  // apply Double Points here too — timing out was completely exempt from it
+  // before, which also doesn't match how Team mode's timeout penalty works.
+  const doublePointsActive = !!session.doublePointsActive;
+  let penalty = Math.abs(POINTS[q.diff]?.wrong ?? 50);
+  if (doublePointsActive) penalty *= 2;
 
   const updatedIndividualPlayers = (session.individualPlayers || []).map(p => {
     if (answers[p.socketId] !== undefined) return p; // already answered

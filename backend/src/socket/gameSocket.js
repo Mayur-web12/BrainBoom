@@ -324,6 +324,14 @@ module.exports = function initSocket(io) {
       const baseChange  = correct ? POINTS[diff].correct : POINTS[diff].wrong;
       let totalChange   = correct ? baseChange + speedBonus : baseChange;
 
+      // ── Double Points — this whole handler is a separate scoring path from
+      // Team mode's processAnswer() in gameEngine.js, which already applies
+      // this multiplier. This path never checked it at all, so arming Double
+      // Points from Live Control had zero effect on Solo mode scores even
+      // though the toggle itself worked fine. ──
+      const doublePointsActive = !!session.doublePointsActive;
+      if (doublePointsActive) totalChange *= 2;
+
       // ── Comeback Catch-Up Bonus — flat bonus for whoever's in last place, final rounds only ──
       const comebackEligible = correct && engine.comebackEligiblePlayerIds(session).includes(socket.id);
       if (comebackEligible) totalChange += engine.COMEBACK_BONUS_POINTS;
@@ -337,7 +345,7 @@ module.exports = function initSocket(io) {
         ...s,
         currentRoundAnswers: {
           ...(s.currentRoundAnswers || {}),
-          [socket.id]: { answerIdx, correct, totalChange, newScore, comebackBonus: comebackEligible, name: player.name, avatar: player.avatar },
+          [socket.id]: { answerIdx, correct, totalChange, newScore, comebackBonus: comebackEligible, doublePoints: doublePointsActive, name: player.name, avatar: player.avatar },
         },
         individualPlayers: (s.individualPlayers || []).map(p =>
           p.socketId === socket.id ? { ...p, score: newScore } : p
@@ -362,6 +370,7 @@ module.exports = function initSocket(io) {
         correct,
         totalChange,
         comebackBonus: comebackEligible,
+        doublePoints: doublePointsActive,
         newScore,
         answeredCount,
         totalPlayers,
