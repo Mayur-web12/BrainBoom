@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 const store  = require('../data/store');
 const engine = require('../data/gameEngine');
 const db     = require('../data/db');
@@ -7,6 +8,36 @@ const { verifyCredentials } = require('../middleware/security');
 // True only for a socket that has authenticated as the mentor.
 function isMentorSocket(socket) {
   return !!store.getMentor(socket.id);
+}
+
+// ── RECONNECT GRACE PERIOD ───────────────────────────────────────────────
+// A page refresh (or a brief network drop) closes the old WebSocket and opens
+// a brand new one with a different socket.id — Socket.IO can't preserve
+// identity across that by itself. Without this, 'disconnect' immediately
+// deleted the player from the session (wiping their score/spot), and there
+// was no way to reclaim it — so any refresh looked and behaved exactly like
+// leaving the game. Instead: on disconnect, wait GRACE_PERIOD_MS before
+// actually removing the player. If they rejoin (via 'rejoin-session',
+// matched by the persistent playerId issued at join time — NOT socket.id,
+// which is exactly the thing that changes on refresh) within that window,
+// their score and progress carry over as if nothing happened.
+const GRACE_PERIOD_MS = 45_000;
+const pendingRemovals  = new Map(); // playerId -> Timeout
+
+function removePlayerFromSession(io, socketId, sessionCode) {
+  const session = store.getSession(sessionCode);
+  if (!session) return;
+  const updated = store.updateSession(sessionCode, s => ({
+    ...s,
+    teams: s.teams.map(t => t.id
+      ? { ...t, players: t.players.filter(p => p.socketId !== socketId) }
+      : t),
+    individualPlayers: (s.individualPlayers || []).filter(p => p.socketId !== socketId),
+  }));
+  io.to(sessionCode).emit('lobby-update', {
+    state: engine.publicView(updated),
+    individualPlayers: updated.individualPlayers || [],
+  });
 }
 
 // Persist a finished game's leaderboard so results survive a restart.
@@ -112,7 +143,7 @@ module.exports = function initSocket(io) {
     });
 
     // ── STUDENT JOINS SESSION ────────────────────────────────────────────
-    socket.on('student-join', ({ code, name, teamId, avatar, mode } = {}, cb) => {
+    socket.on('student-join', ({ code, name, teamId, avatar, mode, playerId } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const upperCode = code?.toUpperCase();
       const session   = store.getSession(upperCode);
@@ -148,8 +179,15 @@ module.exports = function initSocket(io) {
         if (!team) return cb({ ok: false, error: 'Invalid team — this team does not exist in this session' });
       }
 
+      // A persistent ID that survives a page refresh (unlike socket.id, which
+      // is different on every new connection) — see rejoin-session below.
+      // The client generates and stores this once and sends it back on every
+      // join/rejoin attempt from the same browser tab.
+      const pid = playerId || crypto.randomUUID();
+
       const player = {
         socketId: socket.id,
+        playerId: pid,
         name: name.trim(),
         teamId: isIndividual ? 'IND' : team.id,
         avatar: avatar || '🦁',
@@ -167,24 +205,81 @@ module.exports = function initSocket(io) {
           const indPlayers = s.individualPlayers || [];
           return {
             ...s,
-            individualPlayers: [...indPlayers, { socketId: socket.id, name: player.name, avatar: player.avatar, score: 0, fiftyFiftyUses: 0 }],
+            individualPlayers: [...indPlayers, { socketId: socket.id, playerId: pid, name: player.name, avatar: player.avatar, score: 0, fiftyFiftyUses: 0 }],
             // Also add to first team for lobby display
             teams: s.teams.map((t, i) => i === 0
-              ? { ...t, players: [...t.players, { socketId: socket.id, name: player.name, avatar: player.avatar }] }
+              ? { ...t, players: [...t.players, { socketId: socket.id, playerId: pid, name: player.name, avatar: player.avatar }] }
               : t),
           };
         }
         return {
           ...s,
           teams: s.teams.map(t => t.id === teamId
-            ? { ...t, players: [...t.players, { socketId: socket.id, name: player.name, avatar: player.avatar }] }
+            ? { ...t, players: [...t.players, { socketId: socket.id, playerId: pid, name: player.name, avatar: player.avatar }] }
             : t),
         };
       });
 
       socket.join(upperCode);
       io.to(upperCode).emit('lobby-update', { state: engine.publicView(updated), individualPlayers: updated.individualPlayers || [] });
-      cb({ ok: true, player: { ...player, socketId: socket.id }, state: engine.publicView(updated), individualPlayers: updated.individualPlayers || [] });
+      cb({ ok: true, player: { ...player, socketId: socket.id, playerId: pid }, state: engine.publicView(updated), individualPlayers: updated.individualPlayers || [] });
+    });
+
+    // ── RECONNECT AFTER A REFRESH / BRIEF DROP ────────────────────────────
+    // Matched by playerId (persisted client-side), never by socket.id — the
+    // whole point is that socket.id is NOT the same as it was before.
+    socket.on('rejoin-session', ({ code, playerId } = {}, cb) => {
+      if (typeof cb !== 'function') return;
+      if (!playerId) return cb({ ok: false, error: 'No playerId to rejoin with' });
+      const upperCode = code?.toUpperCase();
+      const session   = store.getSession(upperCode);
+      if (!session) return cb({ ok: false, error: 'Session no longer exists' });
+
+      const isIndividual = session.mode === 'individual';
+      const inTeams = session.teams.flatMap(t => (t.players || []).map(p => ({ ...p, teamId: t.id })));
+      const found   = isIndividual
+        ? (session.individualPlayers || []).find(p => p.playerId === playerId)
+        : inTeams.find(p => p.playerId === playerId);
+
+      if (!found) return cb({ ok: false, error: 'Could not find your spot in this game — please join again' });
+
+      // Cancel the pending "actually remove them now" timer, if one was running.
+      const pending = pendingRemovals.get(playerId);
+      if (pending) { clearTimeout(pending); pendingRemovals.delete(playerId); }
+
+      const oldSocketId = found.socketId;
+      const teamId       = isIndividual ? 'IND' : found.teamId;
+
+      // Re-key everything under the NEW socket.id so future answer/lifeline
+      // events (which are keyed by socket.id) land on the right player.
+      const playerRecord = store.getPlayer(oldSocketId) || {
+        name: found.name, avatar: found.avatar, sessionCode: upperCode,
+        score: found.score || 0, mode: isIndividual ? 'individual' : 'team', teamId,
+      };
+      store.removePlayer(oldSocketId);
+      store.addPlayer(socket.id, { ...playerRecord, socketId: socket.id, playerId, sessionCode: upperCode, teamId });
+
+      const updated = store.updateSession(upperCode, s => ({
+        ...s,
+        teams: s.teams.map(t => ({
+          ...t,
+          players: (t.players || []).map(p => p.playerId === playerId ? { ...p, socketId: socket.id } : p),
+        })),
+        individualPlayers: (s.individualPlayers || []).map(p =>
+          p.playerId === playerId ? { ...p, socketId: socket.id } : p
+        ),
+      }));
+
+      socket.join(upperCode);
+      io.to(upperCode).emit('lobby-update', { state: engine.publicView(updated), individualPlayers: updated.individualPlayers || [] });
+
+      cb({
+        ok: true,
+        player: { name: found.name, avatar: found.avatar, teamId, sessionCode: upperCode, score: found.score || 0, socketId: socket.id, playerId },
+        state: engine.publicView(updated, updated.status === 'round_result'),
+        individualPlayers: updated.individualPlayers || [],
+        mode: session.mode || 'team',
+      });
     });
 
     // ── START GAME ───────────────────────────────────────────────────────
@@ -483,22 +578,29 @@ module.exports = function initSocket(io) {
     // ── DISCONNECT ───────────────────────────────────────────────────────
     socket.on('disconnect', () => {
       console.log(`[socket] disconnect ${socket.id}`);
-      const player = store.removePlayer(socket.id);
-      if (player) {
-        const session = store.getSession(player.sessionCode);
-        if (session) {
-          const updated = store.updateSession(player.sessionCode, s => ({
-            ...s,
-            teams: s.teams.map(t => t.id === player.teamId
-              ? { ...t, players: t.players.filter(p => p.socketId !== socket.id) }
-              : t),
-            individualPlayers: (s.individualPlayers || []).filter(p => p.socketId !== socket.id),
-          }));
-          io.to(player.sessionCode).emit('lobby-update', {
-            state: engine.publicView(updated),
-            individualPlayers: updated.individualPlayers || [],
-          });
-        }
+      const player = store.getPlayer(socket.id);
+      if (player && player.playerId) {
+        // Don't remove them immediately — a page refresh looks EXACTLY like
+        // a disconnect from the server's point of view, and immediately
+        // wiping them out is what turned "I refreshed the page" into
+        // "I lost my spot and score and got kicked to the home screen".
+        // Give them a window to reconnect (see rejoin-session) before
+        // actually removing them from the session.
+        const timer = setTimeout(() => {
+          pendingRemovals.delete(player.playerId);
+          // Only remove if nobody reconnected under a new socket.id in the
+          // meantime — rejoin-session already re-keys the player record, so
+          // if store.getPlayer(socket.id) is gone, a rejoin happened.
+          if (!store.getPlayer(socket.id)) return;
+          store.removePlayer(socket.id);
+          removePlayerFromSession(io, socket.id, player.sessionCode);
+        }, GRACE_PERIOD_MS);
+        pendingRemovals.set(player.playerId, timer);
+      } else if (player) {
+        // No playerId (shouldn't normally happen) — fall back to the old,
+        // immediate-removal behavior rather than leaving a ghost player.
+        store.removePlayer(socket.id);
+        removePlayerFromSession(io, socket.id, player.sessionCode);
       }
       store.removeMentor(socket.id);
     });

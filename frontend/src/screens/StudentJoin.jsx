@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { connectSocket } from '../utils/socket';
 import { useEmit } from '../hooks/useSocket';
 import { Spinner } from '../components/shared';
+import { getOrCreatePlayerId, saveRejoinInfo } from '../utils/rejoin';
 
 const AVATARS = ['🦁','🦊','🐱','🐸','🦋','🦄','🐯','🐻','🐼','🦅','🐧','🦉','🐬','🐺','🦖','🦕'];
 
@@ -61,9 +62,11 @@ export function StudentJoin() {
     setLoading(true);
     try {
       connectSocket();
-      const res = await emit('student-join', { code, name: name.trim(), teamId: validTeam.id, avatar });
-      dispatch({ type:'SET_PLAYER', player: { name:name.trim(), teamId:validTeam.id, avatar, sessionCode:code, score:0, socketId:res.player?.socketId } });
+      const playerId = getOrCreatePlayerId();
+      const res = await emit('student-join', { code, name: name.trim(), teamId: validTeam.id, avatar, playerId });
+      dispatch({ type:'SET_PLAYER', player: { name:name.trim(), teamId:validTeam.id, avatar, sessionCode:code, score:0, socketId:res.player?.socketId, playerId } });
       dispatch({ type:'SET_GAME', gameState: res.state });
+      saveRejoinInfo({ code, playerId, mode:'team' });
       toast(`Welcome to ${validTeam.name}! 🎉`, 'success');
       go('lobby');
     } catch(err) {
@@ -219,15 +222,17 @@ export function IndividualJoin() {
       // Individual players join team 'IND' (individual pool), or first team as default
       // We use a special solo team id that the backend resolves
       const soloTeam = session.teams[0]; // fallback — server tracks individual scores
+      const playerId = getOrCreatePlayerId();
       const res = await emit('student-join', {
-        code, name: name.trim(), teamId: soloTeam.id, avatar, mode: 'individual'
+        code, name: name.trim(), teamId: soloTeam.id, avatar, mode: 'individual', playerId
       });
       dispatch({ type:'SET_PLAYER', player: {
         name: name.trim(), teamId: soloTeam.id, avatar,
         sessionCode: code, score: 0, mode: 'individual',
-        socketId: res.player?.socketId,
+        socketId: res.player?.socketId, playerId,
       }});
       dispatch({ type:'SET_GAME', gameState: res.state });
+      saveRejoinInfo({ code, playerId, mode:'individual' });
       toast(`You're in! Good luck ${name}! 🏅`, 'success');
       go('lobby');
     } catch(err) {

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import './styles/globals.css';
 import { AppProvider, useApp } from './context/AppContext';
-import { useSocketSetup } from './hooks/useSocket';
+import { useSocketSetup, useEmit } from './hooks/useSocket';
+import { connectSocket } from './utils/socket';
+import { loadRejoinInfo, clearRejoinInfo } from './utils/rejoin';
 import { BgOrbs, ToastContainer, ErrorBanner } from './components/shared';
 
 import { Landing, MentorGate }    from './screens/Landing';
@@ -37,12 +39,44 @@ function NotFound({ path }) {
 }
 
 function Router() {
-  const { state, go } = useApp();
+  const { state, go, dispatch } = useApp();
   useSocketSetup();
+  const emit = useEmit();
 
   const { screen, error } = state;
   const isMentor = !!state.mentor;
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  // Only gate rendering behind the rejoin check when there's actually a
+  // saved session to try — otherwise every normal fresh visit would show a
+  // pointless "Reconnecting…" flash before landing on the home screen.
+  const [hasRejoinInfo] = useState(() => !!loadRejoinInfo());
+  const [rejoinChecked, setRejoinChecked] = useState(() => !hasRejoinInfo);
+
+  // Reconnect a student to the game they were in after a page refresh —
+  // otherwise a refresh always dropped straight back to the landing page,
+  // even though the game itself was still running and waiting for them.
+  useEffect(() => {
+    const info = loadRejoinInfo();
+    if (!info || isMentor) { setRejoinChecked(true); return; }
+    let cancelled = false;
+    connectSocket();
+    emit('rejoin-session', { code: info.code, playerId: info.playerId })
+      .then(res => {
+        if (cancelled) return;
+        dispatch({ type:'SET_PLAYER', player: { ...res.player, mode: res.mode } });
+        dispatch({ type:'SET_GAME', gameState: res.state });
+        dispatch({ type:'SET_GAME_MODE', gameMode: res.mode || 'team' });
+        if (res.individualPlayers) dispatch({ type:'SET_INDIVIDUAL_PLAYERS', players: res.individualPlayers });
+        const statusScreen = {
+          lobby: 'lobby', topic_pick: 'topic-pick', playing: 'game',
+          round_result: 'topic-pick', finished: 'final-leaderboard',
+        }[res.state?.status] || 'lobby';
+        go(statusScreen);
+      })
+      .catch(() => { clearRejoinInfo(); })
+      .finally(() => { if (!cancelled) setRejoinChecked(true); });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     const handleURL = () => {
@@ -72,6 +106,18 @@ function Router() {
       <>
         <BgOrbs />
         <NotFound path={currentPath} />
+      </>
+    );
+  }
+
+  if (!rejoinChecked) {
+    return (
+      <>
+        <BgOrbs />
+        <div className="screen" style={{alignItems:'center',justifyContent:'center',textAlign:'center'}}>
+          <div style={{fontSize:'2.5rem',marginBottom:12}}>🔄</div>
+          <p className="mut">Reconnecting to your game…</p>
+        </div>
       </>
     );
   }

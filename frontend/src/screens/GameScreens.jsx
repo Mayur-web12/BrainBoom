@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { useEmit } from '../hooks/useSocket';
 import { TimerRing, Confetti, TeamScoreRow } from '../components/shared';
 import { playCorrect, playWrong, playWinner } from '../utils/sounds';
+import { clearRejoinInfo } from '../utils/rejoin';
 
 const LETTERS = ['A','B','C','D','E','F'];
 const DIFF_PTS = { easy:{correct:100,wrong:50}, medium:{correct:150,wrong:75}, hard:{correct:200,wrong:100} };
@@ -1720,6 +1721,7 @@ export function FinalLeaderboard() {
 
   // Student: go home
   const goHome = () => {
+    clearRejoinInfo(); // game is over — don't try to reconnect them to it again later
     dispatch({ type:'RESET' });
     go('landing');
   };
