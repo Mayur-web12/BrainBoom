@@ -59,6 +59,33 @@ function clearTimer(code) {
   if (timers.has(code)) { clearInterval(timers.get(code)); timers.delete(code); }
 }
 
+// ── SOCKET-LEVEL BRUTE-FORCE PROTECTION FOR mentor-auth ────────────────────
+// The REST /auth/login endpoint is rate-limited (5/min), but the real login
+// screen ALSO calls this socket event afterward (to attach the mentor's
+// socket.id), and this handler independently re-checks the password itself.
+// A raw Socket.IO client that skips the REST call entirely and hits this
+// event directly had NO rate limit at all — unlimited password guesses
+// against the mentor account. This mirrors the REST endpoint's limit here.
+const AUTH_WINDOW_MS = 60_000;
+const AUTH_MAX_ATTEMPTS = 5;
+const authAttempts = new Map(); // ip -> { count, resetAt }
+
+function clientIp(socket) {
+  const fwd = socket.handshake.headers['x-forwarded-for'];
+  return (typeof fwd === 'string' ? fwd.split(',')[0].trim() : null) || socket.handshake.address || 'unknown';
+}
+
+function isAuthRateLimited(ip) {
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    authAttempts.set(ip, { count: 1, resetAt: now + AUTH_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > AUTH_MAX_ATTEMPTS;
+}
+
 function startTimer(io, code) {
   clearTimer(code);
   const interval = setInterval(() => {
@@ -120,6 +147,10 @@ module.exports = function initSocket(io) {
     // ── MENTOR AUTH ──────────────────────────────────────────────────────
     socket.on('mentor-auth', ({ email, password } = {}, cb) => {
       if (typeof cb !== 'function') return;
+      const ip = clientIp(socket);
+      if (isAuthRateLimited(ip)) {
+        return cb({ ok: false, error: 'Too many login attempts. Wait 1 minute.' });
+      }
       if (verifyCredentials(email, password)) {
         store.setMentor(socket.id, { email, name: 'Mentor', sessionCode: null });
         cb({ ok: true, name: 'Mentor' });
@@ -155,9 +186,14 @@ module.exports = function initSocket(io) {
       // Always use server-side mode — never trust client-sent mode
       const isIndividual = session.mode === 'individual';
 
-      // Enforce player limit for individual mode
-      if (isIndividual && session.maxPlayers) {
-        const currentCount = (session.individualPlayers || []).length;
+      // Enforce the session's overall player limit — total across ALL teams
+      // for Team mode (not per-team), or total solo players for Individual
+      // mode. This used to only apply to Individual mode; Team mode sessions
+      // could accept unlimited real-world joiners with no cap at all.
+      if (session.maxPlayers) {
+        const currentCount = isIndividual
+          ? (session.individualPlayers || []).length
+          : session.teams.reduce((sum, t) => sum + (t.players?.length || 0), 0);
         if (currentCount >= session.maxPlayers) {
           return cb({ ok: false, error: `Maximum player limit reached (${session.maxPlayers}). You cannot join this game.` });
         }

@@ -211,7 +211,7 @@ function DashHome({ sessions, loading, dbQuestions, topicMeta }) {
               <span className="badge b-purple" style={{fontFamily:'Fredoka,cursive',letterSpacing:2}}>{s.code}</span>
               <span className="fw8 fl1">{s.title}</span>
               <span className={`badge b-${s.status==='playing'?'red':s.status==='finished'?'green':'blue'}`}>{s.status}</span>
-                    {s.mode==='individual'&&<><span className="badge" style={{background:'rgba(76,175,80,.2)',color:'var(--green)',border:'1px solid rgba(76,175,80,.4)'}}>🏅 Solo</span>{s.maxPlayers&&<span className="badge b-purple" style={{fontSize:'0.75rem'}}>Max {s.maxPlayers}</span>}</> }
+                    {s.mode==='individual'&&<span className="badge" style={{background:'rgba(76,175,80,.2)',color:'var(--green)',border:'1px solid rgba(76,175,80,.4)'}}>🏅 Solo</span>}{s.maxPlayers&&<span className="badge b-purple" style={{fontSize:'0.75rem'}}>Max {s.maxPlayers}</span>}
             </div>
           ))}
         </div>
@@ -226,7 +226,7 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
   const [showSoloCreate, setShowSoloCreate] = useState(false);
   const [creating,       setCreating]       = useState(false);
   const [form, setForm] = useState({
-    title:'', timerSeconds:30, diffFilter:'all', selectedTopics:[], teamCount:4, questionsPerTeam:10,
+    title:'', timerSeconds:30, diffFilter:'all', selectedTopics:[], teamCount:4, questionsPerTeam:10, maxPlayers:25,
     teams: TEAM_PRESETS.slice(0,4).map(t=>({...t})),
   });
   const [soloForm, setSoloForm] = useState({
@@ -260,11 +260,11 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
       const res = await api.createSession({
         title:form.title.trim(), teams:form.teams, timerSeconds:form.timerSeconds,
         diffFilter:form.diffFilter, topicFilter:form.selectedTopics, questionsPerTeam:form.questionsPerTeam,
-        mode:'team',
+        mode:'team', maxPlayers:form.maxPlayers,
       });
       toast(`Team session created! Code: ${res.session.code} 🎉`,'success');
       setShowCreate(false);
-      setForm({title:'',timerSeconds:30,diffFilter:'all',selectedTopics:[],teamCount:4,questionsPerTeam:10,teams:TEAM_PRESETS.slice(0,4).map(t=>({...t}))});
+      setForm({title:'',timerSeconds:30,diffFilter:'all',selectedTopics:[],teamCount:4,questionsPerTeam:10,maxPlayers:25,teams:TEAM_PRESETS.slice(0,4).map(t=>({...t}))});
       onRefresh();
     } catch(err){ toast(err.message,'error'); }
     setCreating(false);
@@ -320,7 +320,7 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
                 <span className="badge b-purple">{s.questionCount} q</span>
                 <span className="badge b-orange">{s.timerSeconds}s</span>
                 <span className={`badge b-${s.status==='playing'?'red':s.status==='finished'?'green':'blue'}`}>{s.status}</span>
-                    {s.mode==='individual'&&<><span className="badge" style={{background:'rgba(76,175,80,.2)',color:'var(--green)',border:'1px solid rgba(76,175,80,.4)'}}>🏅 Solo</span>{s.maxPlayers&&<span className="badge b-purple" style={{fontSize:'0.75rem'}}>Max {s.maxPlayers}</span>}</> }
+                    {s.mode==='individual'&&<span className="badge" style={{background:'rgba(76,175,80,.2)',color:'var(--green)',border:'1px solid rgba(76,175,80,.4)'}}>🏅 Solo</span>}{s.maxPlayers&&<span className="badge b-purple" style={{fontSize:'0.75rem'}}>Max {s.maxPlayers}</span>}
               </div>
             </div>
             <div className="fl gap2">
@@ -369,6 +369,18 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
             ))}
           </div>
           <p className="mut fs-xs mt1" style={{marginTop:6}}>Each team picks {form.questionsPerTeam} topics · Total rounds ≈ {form.questionsPerTeam * form.teamCount}</p>
+        </div>
+        <div className="fg" style={{background:'rgba(123,97,255,.08)',border:'1px solid rgba(123,97,255,.25)',borderRadius:12,padding:'12px 16px',marginBottom:14}}>
+          <label className="lbl" style={{color:'var(--blue2)'}}>Max Players (across all teams combined)</label>
+          <div className="grid3 gap2" style={{marginTop:8}}>
+            {[10,15,25,40,60,100].map(n=>(
+              <button key={n} onClick={()=>setForm(p=>({...p,maxPlayers:n}))} className="btn btn-sm"
+                style={{background:form.maxPlayers===n?'var(--blue2)':'var(--bg3)',border:`1.5px solid ${form.maxPlayers===n?'var(--blue2)':'rgba(255,255,255,.1)'}`,color:form.maxPlayers===n?'#fff':'var(--t2)'}}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="mut fs-xs mt1" style={{marginTop:6}}>Once {form.maxPlayers} players have joined (any team), the game code stops accepting new joins.</p>
         </div>
         <div className="fg"><label className="lbl">Filter Topics <span className="mut">(empty = all)</span></label>
           <div className="fl flw gap2">

@@ -146,7 +146,14 @@ router.get('/team-presets', (req, res) => {
 });
 
 // ── SESSIONS ─────────────────────────────────────────────────────────────
-router.get('/sessions', (req, res) => {
+// Lists every session across the whole app, including live game codes and
+// player names/scores — this is exactly the kind of thing that should only
+// go to an authenticated mentor, not anyone who happens to hit this URL.
+// It was missing requireMentorToken while every other mentor-only route
+// (create/delete session, add/edit questions, etc.) already had it — meaning
+// any anonymous visitor could previously enumerate every currently-running
+// game's join code, without ever logging in.
+router.get('/sessions', requireMentorToken, (req, res) => {
   res.json({ ok: true, sessions: store.getAllSessions().map(s => ({
     code:          s.code,
     title:         s.title,
@@ -181,7 +188,7 @@ router.get('/sessions', (req, res) => {
 
 router.post('/sessions', requireMentorToken, rateLimit({ windowMs:60000, max:10 }), validateSession, ah(async (req, res) => {
   try {
-    const { title, teams, timerSeconds = 30, topicFilter = [], diffFilter = 'all', questionIds, questionsPerTeam = 10, mode = 'team', maxPlayers = 100 } = req.body;
+    const { title, teams, timerSeconds = 30, topicFilter = [], diffFilter = 'all', questionIds, questionsPerTeam = 10, mode = 'team', maxPlayers = 25 } = req.body;
 
     if (!title || !title.trim())           return res.status(400).json({ ok:false, error:'Title is required' });
     if (!['team','individual'].includes(mode)) return res.status(400).json({ ok:false, error:'Invalid session mode' });
@@ -239,7 +246,11 @@ router.post('/sessions', requireMentorToken, rateLimit({ windowMs:60000, max:10 
 
     session.createdAt = new Date().toISOString();
     session.mode = mode;
-    session.maxPlayers = mode === 'individual' ? Number(maxPlayers) : null;
+    // Was individual-mode-only before — Team mode sessions can have plenty
+    // of real-world players spread across a handful of teams, and a mentor
+    // may want a hard cap there too (e.g. "only 25 people total can join
+    // this game"), same as Solo mode already allowed.
+    session.maxPlayers = maxPlayers != null ? Number(maxPlayers) : null;
     session.individualPlayers = [];
     store.createSession(code, session);
 
@@ -287,7 +298,10 @@ router.patch('/sessions/:code/timer', requireMentorToken, (req, res) => {
 });
 
 // ── SAVED RESULTS (durable history of finished games) ───────────────────────
-router.get('/results', ah(async (req, res) => {
+// Player names and scores from past games — same sensitivity as the live
+// sessions list above, and same fix: this wasn't gated to mentors either
+// (it just happens nothing in the current UI calls it yet).
+router.get('/results', requireMentorToken, ah(async (req, res) => {
   res.json({ ok: true, results: await db.getResults() });
 }));
 
