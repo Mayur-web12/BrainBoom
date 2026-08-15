@@ -31,7 +31,11 @@ export function MentorLogin() {
       const data = await api.login(email.trim(), password.trim());
       dispatch({ type:'SET_MENTOR', mentor: data.mentor });
       connectSocket();
-      await emit('mentor-auth', { email: email.trim(), password: password.trim() });
+      // Send the already-issued mentor token, not the raw password — the
+      // password only ever needs to go to the one rate-limited REST login
+      // call above. See gameSocket.js's mentor-auth handler for why this
+      // matters (it used to independently re-check the password itself).
+      await emit('mentor-auth', { token: data.token });
       toast(`Welcome, ${data.mentor.name}! 🎓`, 'success');
       go('mentor-dash');
     } catch (err) {

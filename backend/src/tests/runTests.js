@@ -336,6 +336,57 @@ console.log('\n📋 Suite 12: Wrong team validation');
 }
 
 // ══════════════════════════════════════════════════════════════════
+// Suite 13 — Route auth audit (static analysis, no server needed)
+// ══════════════════════════════════════════════════════════════════
+// This is here because of a real incident: GET /sessions and GET /results
+// were shipped with no auth check at all, silently leaking live game codes
+// and player names/scores to anyone who found the URL — while every other
+// mentor-only route correctly had requireMentorToken. It was a simple
+// oversight, and simple oversights recur unless something makes them loud.
+//
+// This test parses the actual route file and fails LOUDLY if any route is
+// neither (a) explicitly allow-listed below as intentionally public, with a
+// reason, nor (b) protected by requireMentorToken. Adding a new route now
+// forces a conscious decision — public with a documented reason, or
+// mentor-only — instead of "it happened to work in manual testing."
+console.log('\n📋 Suite 13: Route auth audit');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '../routes/api.js'), 'utf8');
+
+  // method + path → reason it's intentionally open to anyone, no login required
+  const PUBLIC_ROUTES = {
+    'POST /auth/login':                'the login endpoint itself — rate-limited (5/min)',
+    'GET /questions':                  'answer key (ans/exp) is stripped for non-mentor callers; needed for Practice Mode & Shared Screen',
+    'POST /practice/check-answer':     'students grading their own practice attempts; rate-limited, never reveals ans in bulk',
+    'POST /questions/:id/fifty-fifty': 'students using the 50/50 lifeline; only ever reveals WRONG indices, rate-limited',
+    'GET /topics':                     'topic name/emoji/color only — no sensitive data, needed by students & Shared Screen',
+    'GET /team-presets':               'static color/emoji presets — no sensitive data',
+    'GET /sessions/:code':             'reveals info about ONE session, but only if you already know its code (required for the join flow) — does not enable code discovery/enumeration',
+    'GET /health':                     'standard health-check convention — aggregate counts only, no personal data',
+  };
+
+  const routeLines = src.split('\n').filter(l => /^router\.(get|post|put|patch|delete)\(/.test(l.trim()));
+  assert('Route file has routes to audit', routeLines.length > 0);
+
+  for (const line of routeLines) {
+    const m = line.match(/^router\.(get|post|put|patch|delete)\(\s*'([^']+)'/);
+    if (!m) continue;
+    const method = m[1].toUpperCase();
+    const routePath = m[2];
+    const key = `${method} ${routePath}`;
+    const hasAuth = /requireMentorToken/.test(line);
+    const isAllowlisted = key in PUBLIC_ROUTES;
+    assert(
+      `${key} — ${hasAuth ? 'mentor-only' : isAllowlisted ? 'public (' + PUBLIC_ROUTES[key] + ')' : 'MISSING AUTH, NOT ALLOWLISTED'}`,
+      hasAuth || isAllowlisted,
+      hasAuth ? '' : `Add requireMentorToken, or add '${key}' to PUBLIC_ROUTES in this test with a documented reason.`
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // RESULTS
 // ══════════════════════════════════════════════════════════════════
 console.log(`\n${'═'.repeat(48)}`);

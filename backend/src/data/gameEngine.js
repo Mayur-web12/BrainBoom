@@ -87,6 +87,16 @@ function createGameSession({ code, title, mentorId, teams, questions, timerSecon
   const minQPerTopic = mode === 'individual' ? 1 : 3;
   const availableTopics = Object.keys(byTopic).filter(t => byTopic[t].length >= minQPerTopic);
 
+  // Topics that will NEVER be pickable this game because the chosen
+  // difficulty filter left them with too few questions — as opposed to a
+  // topic that starts out available and later gets used up during play.
+  // The UI needs this distinction: showing both as "All done ✓" reads as
+  // "you've finished this topic" when the real reason is "this topic never
+  // had enough Hard questions to begin with" — confusing, especially when a
+  // narrow difficulty filter (e.g. Hard-only) is applied and several topics
+  // fall below the threshold before the game even starts.
+  const ineligibleTopics = Object.keys(byTopic).filter(t => byTopic[t].length < minQPerTopic);
+
   return {
     code,
     title,
@@ -98,6 +108,7 @@ function createGameSession({ code, title, mentorId, teams, questions, timerSecon
     usedQuestionIds: [],        // ids already asked — never repeat
     byTopic,                    // { topicName: [questionIds] }
     availableTopics,            // topics still having unused questions
+    ineligibleTopics,           // topics that never had enough questions for this session's filters — distinct from "used up during play"
     timerSeconds,
     topicFilter,
     diffFilter,
@@ -480,6 +491,7 @@ function publicView(session, revealAnswer = false) {
     code:            session.code,
     title:           session.title,
     status:          session.status,
+    diffFilter:      session.diffFilter || 'all', // lets the UI show only the difficulty tier(s) this session can actually draw from
     teams:           session.teams.map(t => ({
       id:          t.id,
       name:        t.name,
@@ -497,6 +509,7 @@ function publicView(session, revealAnswer = false) {
     currentTeamEmoji:session.teams[session.currentTeamIdx]?.emoji,
 
     availableTopics: session.availableTopics,
+    ineligibleTopics: session.ineligibleTopics || [],
     chosenTopic:     session.chosenTopic,
     roundNumber:     session.roundNumber,
     maxRounds,

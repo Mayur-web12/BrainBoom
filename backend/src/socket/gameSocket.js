@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const store  = require('../data/store');
 const engine = require('../data/gameEngine');
 const db     = require('../data/db');
-const { verifyCredentials } = require('../middleware/security');
+const { verifyCredentials, isValidMentorToken } = require('../middleware/security');
 
 // True only for a socket that has authenticated as the mentor.
 function isMentorSocket(socket) {
@@ -60,12 +60,10 @@ function clearTimer(code) {
 }
 
 // ── SOCKET-LEVEL BRUTE-FORCE PROTECTION FOR mentor-auth ────────────────────
-// The REST /auth/login endpoint is rate-limited (5/min), but the real login
-// screen ALSO calls this socket event afterward (to attach the mentor's
-// socket.id), and this handler independently re-checks the password itself.
-// A raw Socket.IO client that skips the REST call entirely and hits this
-// event directly had NO rate limit at all — unlimited password guesses
-// against the mentor account. This mirrors the REST endpoint's limit here.
+// Kept as defense-in-depth even after removing password checking from this
+// event entirely (see below) — cheap insurance against someone hammering it
+// with junk tokens, though a random 48-char token isn't guessable the way a
+// human password is.
 const AUTH_WINDOW_MS = 60_000;
 const AUTH_MAX_ATTEMPTS = 5;
 const authAttempts = new Map(); // ip -> { count, resetAt }
@@ -145,18 +143,35 @@ module.exports = function initSocket(io) {
     console.log(`[socket] connect  ${socket.id}`);
 
     // ── MENTOR AUTH ──────────────────────────────────────────────────────
-    socket.on('mentor-auth', ({ email, password } = {}, cb) => {
+    // This used to accept {email, password} and independently re-verify the
+    // password a second time (the REST /auth/login endpoint already does
+    // this once). That duplication was the actual vulnerability — it meant
+    // the mentor password could be guessed via this socket event even by a
+    // client that never touched the rate-limited REST endpoint at all.
+    //
+    // The real fix isn't "add a matching rate limit here too" (a patch that
+    // has to be remembered and re-applied anywhere credentials are checked)
+    // — it's to not check the password here a second time in the first
+    // place. This event now just attaches an ALREADY-authenticated mentor's
+    // socket to their session, using the token issued by REST /auth/login.
+    // A token is a random 48-character string with no dictionary, no reuse
+    // across sites, and nothing a human would ever choose — guessing one is
+    // computationally infeasible in a way a password never is, so this
+    // event no longer has a meaningful brute-force surface to protect at
+    // all, regardless of which client (the real UI or a raw socket) calls
+    // it. The rate limit above is kept as harmless extra insurance, not as
+    // the thing actually keeping this safe.
+    socket.on('mentor-auth', ({ token } = {}, cb) => {
       if (typeof cb !== 'function') return;
       const ip = clientIp(socket);
       if (isAuthRateLimited(ip)) {
-        return cb({ ok: false, error: 'Too many login attempts. Wait 1 minute.' });
+        return cb({ ok: false, error: 'Too many attempts. Wait 1 minute.' });
       }
-      if (verifyCredentials(email, password)) {
-        store.setMentor(socket.id, { email, name: 'Mentor', sessionCode: null });
-        cb({ ok: true, name: 'Mentor' });
-      } else {
-        cb({ ok: false, error: 'Invalid credentials' });
+      if (!isValidMentorToken(token)) {
+        return cb({ ok: false, error: 'Not authenticated — please log in again' });
       }
+      store.setMentor(socket.id, { name: 'Mentor', sessionCode: null });
+      cb({ ok: true, name: 'Mentor' });
     });
 
     // ── MENTOR JOINS SESSION ROOM ────────────────────────────────────────

@@ -167,6 +167,7 @@ export function TopicPickScreen() {
   const curTeam    = gs.teams?.find(t=>t.id===currentId);
   const myTeam     = gs.teams?.find(t=>t.id===myTeamId);
   const available  = gs.availableTopics || [];
+  const ineligible = gs.ineligibleTopics || [];
 
   // For solo mode: total rounds = questionsPerTeam (1 team)
   // For team mode: total rounds = questionsPerTeam × number of teams
@@ -288,18 +289,28 @@ export function TopicPickScreen() {
                 {usedCnt > 0 && isAvail && (
                   <div className="fs-xs" style={{color:meta.color,opacity:.6,marginTop:3}}>Used {usedCnt}×</div>
                 )}
-                {!isAvail && <div className="fs-xs mut" style={{marginTop:4}}>All done ✓</div>}
+                {!isAvail && ineligible.includes(name) && (
+                  <div className="fs-xs mut" style={{marginTop:4}} title="Not enough questions at the selected difficulty for this session">Not enough {gs.diffFilter!=='all'?gs.diffFilter+' ':''}questions</div>
+                )}
+                {!isAvail && !ineligible.includes(name) && <div className="fs-xs mut" style={{marginTop:4}}>All done ✓</div>}
                 {isAvail && isMyTurn && !atLimit && <div className="fs-xs" style={{color:meta.color,opacity:.7,marginTop:4}}>Tap to pick</div>}
               </button>
             );
           })}
         </div>
 
-        {/* Points table */}
+        {/* Points table — only shows the difficulty tier(s) this session can
+            actually draw from. Before, this always listed Easy/Medium/Hard
+            unconditionally even when the mentor restricted the whole
+            session to one difficulty — showing point values for questions
+            students could never actually get, which just adds confusion
+            about what's really in play. */}
         <div className="card" style={{padding:'12px 16px',marginBottom:14}}>
           <div className="sec-title" style={{margin:'0 0 10px',fontSize:'0.95rem'}}>💰 Points This Game</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-            {[['easy','🟢'],['medium','🟡'],['hard','🔴']].map(([d,ic])=>(
+          <div style={{display:'grid',gridTemplateColumns:`repeat(${(gs.diffFilter && gs.diffFilter!=='all') ? 1 : 3},1fr)`,gap:10}}>
+            {[['easy','🟢'],['medium','🟡'],['hard','🔴']]
+              .filter(([d]) => !gs.diffFilter || gs.diffFilter === 'all' || gs.diffFilter === d)
+              .map(([d,ic])=>(
               <div key={d} style={{padding:'8px 10px',borderRadius:10,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.07)',textAlign:'center'}}>
                 <div className="fw8 fs-xs mb1" style={{marginBottom:4}}>{ic} {d[0].toUpperCase()+d.slice(1)}</div>
                 <div className="fs-xs grn">✅ +{DIFF_PTS[d].correct}</div>
@@ -307,6 +318,9 @@ export function TopicPickScreen() {
               </div>
             ))}
           </div>
+          {gs.diffFilter && gs.diffFilter !== 'all' && (
+            <p className="mut fs-xs mt2" style={{marginTop:8}}>This game is set to {gs.diffFilter} questions only.</p>
+          )}
         </div>
 
         {/* Scores section */}
@@ -859,37 +873,90 @@ export function RoundResult() {
 const FEEDBACK_EMOJIS_CORRECT = ['🎉','✅','🏆','⭐','🌟','💥','🔥','👏','🎯','💪'];
 const FEEDBACK_EMOJIS_WRONG   = ['❌','😮','💀','😬','🙈','😱','💔','🤦','😤','❗'];
 
+// ── SHARED SCREEN PERSISTENCE ────────────────────────────────────────────
+// Unlike Team/Solo mode, Shared Screen mode has no server-side session at
+// all — every bit of game state (scores, current question, round history)
+// lives only in this component's React state. A refresh wipes React state
+// completely, so without this, refreshing mid-game meant losing the whole
+// game and landing back on the home screen — same underlying problem as the
+// Team/Solo refresh bug fixed earlier, but this mode needed its own fix
+// since there's no socket session to reconnect to; the fix here is to
+// persist the game state itself, not a reconnect token.
+const SHARED_GAME_KEY = 'quizquest_shared_game_state';
+
+function loadSharedGameState() {
+  try {
+    const raw = sessionStorage.getItem(SHARED_GAME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Don't resume something from many hours ago in a tab someone forgot was open.
+    if (Date.now() - (parsed.savedAt || 0) > 6 * 60 * 60 * 1000) return null;
+    return parsed;
+  } catch (_) { return null; }
+}
+function saveSharedGameState(data) {
+  try { sessionStorage.setItem(SHARED_GAME_KEY, JSON.stringify({ ...data, savedAt: Date.now() })); } catch (_) {}
+}
+function clearSharedGameState() {
+  try { sessionStorage.removeItem(SHARED_GAME_KEY); } catch (_) {}
+}
+
 export function SharedGameScreen() {
   const { state, toast: sharedToast } = useApp();
   const tm = state.topicMeta;
+  // Read once at mount, not on every render.
+  const restoredRef = React.useRef(null);
+  if (restoredRef.current === null) restoredRef.current = loadSharedGameState() || false;
+  const restored = restoredRef.current || null;
 
   // ── STATE ──────────────────────────────────────────────────────────────
-  const [phase,        setPhase]        = useState('setup');
-  const [teamCount,    setTeamCount]    = useState(2);
-  const [qPerTeam,     setQPerTeam]     = useState(5);
-  const [timerSecs,    setTimerSecs]    = useState(30);
-  const [teams,        setTeams]        = useState(() => TEAM_PRESETS.slice(0,2).map(t=>({...t,score:0})));
-  const [curTeamIdx,   setCurTeamIdx]   = useState(0);
-  const [available,    setAvailable]    = useState({}); // { topic: { easy:[], medium:[], hard:[] } }
-  const [question,     setQuestion]     = useState(null);
-  const [chosenTopic,  setChosenTopic]  = useState(null);
-  const [chosenDiff,   setChosenDiff]   = useState(null);
-  const [timer,        setTimer]        = useState(30);
+  const [phase,        setPhase]        = useState(restored?.phase ?? 'setup');
+  const [teamCount,    setTeamCount]    = useState(restored?.teamCount ?? 2);
+  const [qPerTeam,     setQPerTeam]     = useState(restored?.qPerTeam ?? 5);
+  const [timerSecs,    setTimerSecs]    = useState(restored?.timerSecs ?? 30);
+  const [teams,        setTeams]        = useState(() => restored?.teams ?? TEAM_PRESETS.slice(0,2).map(t=>({...t,score:0})));
+  const [curTeamIdx,   setCurTeamIdx]   = useState(restored?.curTeamIdx ?? 0);
+  const [available,    setAvailable]    = useState(restored?.available ?? {}); // { topic: { easy:[], medium:[], hard:[] } }
+  const [question,     setQuestion]     = useState(restored?.question ?? null);
+  const [chosenTopic,  setChosenTopic]  = useState(restored?.chosenTopic ?? null);
+  const [chosenDiff,   setChosenDiff]   = useState(restored?.chosenDiff ?? null);
+  const [timer,        setTimer]        = useState(restored?.timer ?? 30);
+  // Deliberately NOT restored as running — always come back paused after a
+  // refresh, even if the timer was counting down before. Silently resuming
+  // a countdown with no visual warning (and no accounting for how long the
+  // refresh itself took) is worse than just requiring one tap of Resume.
   const [timerActive,  setTimerActive]  = useState(false);
   // Double Points — same concept as Team mode's mentor-armed toggle in Live
   // Control, but Shared Screen mode has no separate mentor device/socket
   // session, so it's armed right here on the difficulty-pick screen instead.
-  const [sharedDoublePoints,       setSharedDoublePoints]       = useState(false); // armed for the next question
-  const [sharedDoublePointsActive, setSharedDoublePointsActive] = useState(false); // snapshot for the CURRENT question
-  const [rounds,       setRounds]       = useState([]);
-  const [teamRounds,   setTeamRounds]   = useState({});
-  const [feedback,     setFeedback]     = useState(null);
-  const [answeredIdx,  setAnsweredIdx]  = useState(null);
-  const [usedIds,      setUsedIds]      = useState([]);
+  const [sharedDoublePoints,       setSharedDoublePoints]       = useState(restored?.sharedDoublePoints ?? false); // armed for the next question
+  const [sharedDoublePointsActive, setSharedDoublePointsActive] = useState(restored?.sharedDoublePointsActive ?? false); // snapshot for the CURRENT question
+  const [rounds,       setRounds]       = useState(restored?.rounds ?? []);
+  const [teamRounds,   setTeamRounds]   = useState(restored?.teamRounds ?? {});
+  const [feedback,     setFeedback]     = useState(restored?.feedback ?? null);
+  const [answeredIdx,  setAnsweredIdx]  = useState(restored?.answeredIdx ?? null);
+  const [usedIds,      setUsedIds]      = useState(restored?.usedIds ?? []);
   const [dbQ,          setDbQ]          = useState([]);
   const [loadingQ,     setLoadingQ]     = useState(true);
-  const [fiftyFiftyUsed, setFiftyFiftyUsed] = useState({}); // { teamId: count } — 50/50 lifeline, resets per game
-  const [removedOpts,    setRemovedOpts]   = useState([]);  // indices hidden by 50/50 on the CURRENT question
+  const [fiftyFiftyUsed, setFiftyFiftyUsed] = useState(restored?.fiftyFiftyUsed ?? {}); // { teamId: count } — 50/50 lifeline, resets per game
+  const [removedOpts,    setRemovedOpts]   = useState(restored?.removedOpts ?? []);  // indices hidden by 50/50 on the CURRENT question
+
+  // Save on every change so a refresh has something fresh to restore from.
+  // Deliberately excludes dbQ (re-fetched on mount anyway, large and
+  // redundant to persist) and loadingQ (transient).
+  React.useEffect(() => {
+    if (phase === 'setup' && rounds.length === 0) { clearSharedGameState(); return; } // nothing worth resuming yet
+    saveSharedGameState({
+      phase, teamCount, qPerTeam, timerSecs, teams, curTeamIdx, available,
+      question, chosenTopic, chosenDiff, timer, sharedDoublePoints,
+      sharedDoublePointsActive, rounds, teamRounds, feedback, answeredIdx,
+      usedIds, fiftyFiftyUsed, removedOpts,
+    });
+  }, [phase, teamCount, qPerTeam, timerSecs, teams, curTeamIdx, available,
+      question, chosenTopic, chosenDiff, timer, sharedDoublePoints,
+      sharedDoublePointsActive, rounds, teamRounds, feedback, answeredIdx,
+      usedIds, fiftyFiftyUsed, removedOpts]);
+
 
   // Full reset for "Play Again" — the component stays mounted between games
   // (we just flip `phase` back to 'setup'), so anything left in state here
@@ -1672,7 +1739,7 @@ export function SharedGameScreen() {
             })}
           </div>}
           <div className="fl gap2">
-            <button className="btn btn-ghost fl1" onClick={()=>{ window.history.pushState({},'','/'); window.location.reload(); }}>🏠 Home</button>
+            <button className="btn btn-ghost fl1" onClick={()=>{ clearSharedGameState(); window.history.pushState({},'','/'); window.location.reload(); }}>🏠 Home</button>
             <button className="btn btn-primary fl1" onClick={resetSharedGame}>🔄 Play Again</button>
           </div>
         </div>

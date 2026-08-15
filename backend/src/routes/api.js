@@ -25,6 +25,39 @@ function callerIsMentor(req) {
 // handler instead of crashing the process (Express 4 doesn't do this for you).
 const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// ── DEFAULT-DENY GATE ────────────────────────────────────────────────────
+// This is the structural fix for the bug class that let GET /sessions and
+// GET /results ship without requireMentorToken: this file used an "opt-in"
+// model where each mentor-only route had to remember to paste the
+// middleware onto itself, and two routes simply didn't. That's a bug class,
+// not a one-off — it will happen again as more routes get added unless the
+// failure mode is flipped.
+//
+// This runs before every route below and requires a valid mentor token for
+// anything NOT explicitly listed here as public. A new route added without
+// thinking about auth is now protected by default; staying public requires
+// a deliberate, visible line in this list instead of a middleware call that's
+// easy to forget is even necessary. The individual requireMentorToken calls
+// further down are kept too (harmless if redundant) as defense-in-depth —
+// this gate isn't meant to replace them, just to make sure nothing can slip
+// through if one of them is ever accidentally removed later.
+const PUBLIC_ROUTES = [
+  { method: 'POST', pattern: /^\/auth\/login$/ },
+  { method: 'GET',  pattern: /^\/questions$/ },                       // answer key/explanation already stripped for non-mentors inside the handler
+  { method: 'POST', pattern: /^\/practice\/check-answer$/ },
+  { method: 'POST', pattern: /^\/questions\/[^/]+\/fifty-fifty$/ },
+  { method: 'GET',  pattern: /^\/topics$/ },
+  { method: 'GET',  pattern: /^\/team-presets$/ },
+  { method: 'GET',  pattern: /^\/sessions\/[^/]+$/ },                 // single-session lookup by code — students need this to check a code before joining
+  { method: 'GET',  pattern: /^\/health$/ },
+];
+
+router.use((req, res, next) => {
+  const isPublic = PUBLIC_ROUTES.some(r => r.method === req.method && r.pattern.test(req.path));
+  if (isPublic) return next();
+  return requireMentorToken(req, res, next);
+});
+
 // ── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/login', rateLimit({ windowMs:60000, max:5, message:'Too many login attempts. Wait 1 minute.' }), (req, res) => {
   const { email, password } = req.body;

@@ -396,6 +396,24 @@ function Sessions({ sessions, topics, topicMeta, dbQuestions, onRefresh, toast, 
         <div style={{padding:'8px 14px',borderRadius:10,background:available>0?'rgba(76,175,80,.08)':'rgba(255,82,82,.08)',border:`1px solid ${available>0?'rgba(76,175,80,.25)':'rgba(255,82,82,.25)'}`,marginBottom:14}}>
           <span className={`fw8 fs-sm ${available>0?'grn':'rdc'}`}>{available>0?'✅':'❌'} {available} questions match</span>
         </div>
+        {(() => {
+          // A topic needs 3+ questions at the chosen difficulty to actually
+          // be selectable during play — fewer than that and it'll silently
+          // never show up as pickable in-game, which is confusing without a
+          // heads-up here (it used to show as "All done ✓" mid-game, as if
+          // the team had already finished it, when really it never had
+          // enough questions to begin with).
+          const topicsToCheck = form.selectedTopics.length > 0 ? form.selectedTopics : topics;
+          const short = topicsToCheck
+            .map(t => ({ t, cnt: dbQuestions.filter(q=>q.topic===t&&(form.diffFilter==='all'||q.diff===form.diffFilter)).length }))
+            .filter(({cnt}) => cnt > 0 && cnt < 3);
+          if (short.length === 0) return null;
+          return (
+            <div style={{padding:'10px 16px',borderRadius:12,background:'rgba(255,217,61,.08)',border:'1px solid rgba(255,217,61,.25)',marginBottom:14,fontSize:'0.85rem',color:'#FFD93D'}}>
+              ⚠️ Won't be selectable in-game (need 3+ questions{form.diffFilter!=='all'?` at ${form.diffFilter}`:''}): {short.map(({t,cnt})=>`${t} (${cnt})`).join(', ')}
+            </div>
+          );
+        })()}
         <div className="fg"><label className="lbl">Teams</label>
           <div className="grid3 gap2 mb2" style={{marginBottom:10}}>
             {[2,3,4,5,6].map(n=>(<button key={n} onClick={()=>setTeamCount(n)} className="btn btn-sm"
