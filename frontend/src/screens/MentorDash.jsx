@@ -865,18 +865,37 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const isImage = /^image\/(jpeg|png|webp)$/.test(file.type);
-    const isVideo = /^video\/(mp4|webm)$/.test(file.type);
-    if (!isImage && !isVideo) { toast('Only JPG, PNG, WebP, MP4, WebM allowed', 'error'); return; }
-    const maxMB = isImage ? 10 : 50;
+    if (!isImage) {
+      // Video used to be accepted here too, converted to a base64 blob the
+      // same way images are — but a 50MB video becomes a ~66MB request body,
+      // stored as a single JSONB value in Postgres and re-sent in full on
+      // every GET /questions call to every player. That's not a size-limit
+      // problem to raise, it's the wrong place for video entirely. YouTube
+      // links (the URL tab) already work well for this and don't have any
+      // of these costs, so direct video upload is intentionally not offered.
+      toast('Videos aren\'t uploaded directly — paste a YouTube (or other video) URL in the "🔗 URL" tab instead.', 'error');
+      return;
+    }
+    const maxMB = 10;
     if (file.size > maxMB * 1024 * 1024) { toast(`File too large. Max ${maxMB}MB`, 'error'); return; }
     setUploading(true);
     try {
-      // Convert to base64 data URL for local preview (replace with cloud upload URL in production)
+      // Converted to a base64 data: URL and embedded directly in the
+      // question's JSON — there's no separate file-storage backend (like S3
+      // or Vercel Blob) wired up yet. That's fine at this size (backend now
+      // accepts up to ~15MB request bodies to match), but it's genuinely not
+      // where this should end up long-term: every image ends up duplicated
+      // into the database and re-downloaded in full by every player on
+      // every game, even for questions they never see. A real object-storage
+      // integration (returning a short https:// URL instead) is the correct
+      // fix if image questions become a regular thing — ask if you'd like
+      // that built; it needs a storage account (e.g. Vercel Blob, Cloudinary)
+      // set up on your end first.
       const reader = new FileReader();
       reader.onload = (ev) => {
         const dataUrl = ev.target.result;
-        setForm(p => ({ ...p, mediaUrl: dataUrl, mediaType: isImage ? 'image' : 'video' }));
-        toast('Media loaded ✅', 'success');
+        setForm(p => ({ ...p, mediaUrl: dataUrl, mediaType: 'image' }));
+        toast('Image loaded ✅', 'success');
         setUploading(false);
       };
       reader.onerror = () => { toast('Failed to read file', 'error'); setUploading(false); };
@@ -1010,17 +1029,17 @@ function Builder({ toast, dbQuestions, setDbQuestions, topics, topicMeta }) {
 
           {mediaMode==='upload' && (
             <div className="fg">
-              <label className="lbl">Upload File</label>
+              <label className="lbl">Upload Image</label>
               <div style={{border:'2px dashed rgba(255,255,255,.2)',borderRadius:10,padding:'18px',textAlign:'center',background:'rgba(255,255,255,.03)',cursor:'pointer',position:'relative'}}
                 onClick={()=>document.getElementById('media-upload-input').click()}>
                 {uploading
                   ? <><div style={{fontSize:'1.5rem',marginBottom:6}}>⏳</div><p className="mut fs-sm">Loading…</p></>
                   : form.mediaUrl
                     ? <><div style={{fontSize:'1.5rem',marginBottom:6}}>✅</div><p className="mut fs-sm">File loaded. Click to replace.</p></>
-                    : <><div style={{fontSize:'1.5rem',marginBottom:6}}>📁</div><p className="mut fs-sm">Click to choose file</p>
-                       <p className="mut fs-xs" style={{marginTop:4}}>Images: JPG, PNG, WebP (max 10MB) · Videos: MP4, WebM (max 50MB)</p></>
+                    : <><div style={{fontSize:'1.5rem',marginBottom:6}}>📁</div><p className="mut fs-sm">Click to choose an image</p>
+                       <p className="mut fs-xs" style={{marginTop:4}}>JPG, PNG, WebP (max 10MB). For video, use the "🔗 URL" tab instead (e.g. a YouTube link).</p></>
                 }
-                <input id="media-upload-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" style={{display:'none'}} onChange={handleFileUpload} />
+                <input id="media-upload-input" type="file" accept="image/jpeg,image/png,image/webp" style={{display:'none'}} onChange={handleFileUpload} />
               </div>
             </div>
           )}
